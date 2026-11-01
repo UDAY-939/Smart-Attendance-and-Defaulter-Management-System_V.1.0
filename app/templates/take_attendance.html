@@ -1,0 +1,399 @@
+{% extends 'base.html' %}
+{% block title %}Mark Attendance · {{ slot.subject.name }} · AttendWise{% endblock %}
+
+{% block content %}
+<div class="mb-4">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb mb-2 small">
+            <li class="breadcrumb-item"><a href="{{ url_for('main.dashboard') }}">Dashboard</a></li>
+            <li class="breadcrumb-item active">Mark Attendance</li>
+        </ol>
+    </nav>
+    <div class="d-flex flex-wrap justify-content-between align-items-center">
+        <div>
+            <h1 class="h3 fw-bold text-dark mb-1">Mark Lecture Attendance</h1>
+            <p class="text-secondary mb-0">
+                <strong>{{ slot.subject.name }}</strong> ({{ slot.subject_code }}) &bull; 
+                Class: <span class="fw-semibold text-dark">{{ slot.classroom.class_name }} / Div {{ slot.classroom.division }}</span> &bull; 
+                Slot: <span class="badge bg-light text-dark border">{{ slot.slot_name }} ({{ slot.slot_type|title }})</span>
+            </p>
+        </div>
+        <div class="mt-2 mt-md-0 d-flex gap-2">
+            <a href="{{ url_for('main.slot_report', slot_id=slot.id) }}" class="btn btn-outline-secondary btn-sm rounded-pill fw-semibold px-3">
+                <i class="bi bi-file-earmark-person me-1"></i> View Defaulters List
+            </a>
+            <a href="{{ url_for('main.dashboard') }}" class="btn btn-light btn-sm rounded-pill border fw-semibold px-3">
+                <i class="bi bi-arrow-left me-1"></i> Back to Dashboard
+            </a>
+        </div>
+    </div>
+</div>
+
+<form method="post" id="attendanceForm">
+    <!-- Session Details Card -->
+    <div class="card card-custom border-0 mb-4">
+        <div class="card-body p-4">
+            <h2 class="h6 fw-bold text-dark mb-3">
+                <i class="bi bi-calendar2-week text-primary me-2"></i>1. Session & Lecture Time Details
+            </h2>
+
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <label class="form-label fw-semibold small text-secondary d-flex justify-content-between align-items-center">
+                        <span><i class="bi bi-calendar-check-fill text-success me-1"></i> Session Date</span>
+                        <span class="badge bg-success-subtle text-success border border-success-subtle"><i class="bi bi-shield-lock me-1"></i>Present Date Only</span>
+                    </label>
+                    <div class="input-group">
+                        <span class="input-group-text bg-light text-success"><i class="bi bi-calendar-day"></i></span>
+                        <input class="form-control bg-light fw-bold text-dark" 
+                               type="date" 
+                               name="session_date" 
+                               id="sessionDateInput"
+                               value="{{ session_date }}" 
+                               min="{{ session_date }}" 
+                               max="{{ session_date }}" 
+                               readonly
+                               required>
+                    </div>
+                    <div class="form-text small text-success">
+                        <i class="bi bi-info-circle me-1"></i> Only present date is allowed for attendance (past/future disabled).
+                    </div>
+                </div>
+
+                <div class="col-md-4">
+                    <label class="form-label fw-semibold small text-secondary d-flex justify-content-between align-items-center">
+                        <span><i class="bi bi-clock-fill text-primary me-1"></i> Lecture Time Slot</span>
+                        <span class="badge bg-primary-subtle text-primary border border-primary-subtle font-monospace" id="attTimePreview">{{ lecture_time }}</span>
+                    </label>
+                    
+                    <div class="row g-1 align-items-center mb-1">
+                        <div class="col-6">
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text bg-light text-primary" title="Start Time (Watch Face)"><i class="bi bi-clock"></i></span>
+                                <input type="time" class="form-control" id="attStartTime" title="Click watch face to select start time">
+                            </div>
+                            <div class="form-text small mt-0">Start Time</div>
+                        </div>
+                        <div class="col-6">
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text bg-light text-primary" title="End Time (Watch Face)"><i class="bi bi-clock-history"></i></span>
+                                <input type="time" class="form-control" id="attEndTime" title="Click watch face to select end time">
+                            </div>
+                            <div class="form-text small mt-0">End Time</div>
+                        </div>
+                    </div>
+
+                    <!-- Hidden synced input passed on form submission -->
+                    <input type="hidden" name="lecture_time" id="lectureTimeInput" value="{{ lecture_time }}">
+
+                    <!-- Quick 1-click slot presets -->
+                    <div class="d-flex flex-wrap gap-1 mt-1">
+                        <button type="button" class="badge bg-light text-dark border quick-att-btn" data-start="09:00" data-end="10:00">09-10 AM</button>
+                        <button type="button" class="badge bg-light text-dark border quick-att-btn" data-start="10:00" data-end="11:00">10-11 AM</button>
+                        <button type="button" class="badge bg-light text-dark border quick-att-btn" data-start="11:15" data-end="12:15">11:15-12:15</button>
+                        <button type="button" class="badge bg-light text-dark border quick-att-btn" data-start="12:15" data-end="13:15">12:15-01:15</button>
+                        <button type="button" class="badge bg-light text-dark border quick-att-btn" data-start="14:00" data-end="15:00">02-03 PM</button>
+                        <button type="button" class="badge bg-light text-dark border quick-att-btn" data-start="15:00" data-end="16:00">03-04 PM</button>
+                    </div>
+                </div>
+
+                <div class="col-md-4">
+                    <label class="form-label fw-semibold small text-secondary">
+                        <i class="bi bi-chat-left-text me-1"></i> Topic / Notes (Optional)
+                    </label>
+                    <input class="form-control" 
+                           type="text" 
+                           name="topic" 
+                           value="{{ topic }}" 
+                           placeholder="e.g. Unit 3 - B+ Trees & Indexing">
+                    <div class="form-text small">Brief lecture subject or syllabus coverage.</div>
+                </div>
+            </div>
+
+            {% if is_edit %}
+                <div class="alert alert-info border-0 rounded-3 mt-3 mb-0 py-2 small d-flex align-items-center gap-2">
+                    <i class="bi bi-info-circle-fill fs-5"></i>
+                    <div>
+                        An attendance session already exists for this date and lecture time. 
+                        <strong>Updating and saving will edit existing records</strong> without creating duplicates.
+                    </div>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Student Attendance List Card -->
+    <div class="card card-custom border-0 mb-4">
+        <div class="card-body p-4">
+            <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 pb-3 border-bottom">
+                <div>
+                    <h2 class="h6 fw-bold text-dark mb-0">
+                        <i class="bi bi-people-fill text-primary me-2"></i>2. Mark Student Attendance
+                    </h2>
+                    <small class="text-secondary">Total enrolled active students: {{ students|length }}</small>
+                </div>
+                
+                <div class="d-flex align-items-center gap-2 mt-2 mt-md-0">
+                    <div class="badge bg-light text-dark border px-3 py-2 fw-semibold">
+                        <span class="text-success"><i class="bi bi-check-circle-fill"></i> Present: <span id="countPresent">0</span></span>
+                        <span class="mx-1 text-muted">|</span>
+                        <span class="text-danger"><i class="bi bi-x-circle-fill"></i> Absent: <span id="countAbsent">0</span></span>
+                    </div>
+
+                    <button type="button" class="btn btn-sm btn-outline-success rounded-pill fw-semibold" onclick="markAll('present')">
+                        <i class="bi bi-check-all me-1"></i> Mark All Present
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-danger rounded-pill fw-semibold" onclick="markAll('absent')">
+                        <i class="bi bi-x-lg me-1"></i> Mark All Absent
+                    </button>
+                </div>
+            </div>
+
+            <div class="table-responsive">
+                <table class="table table-custom align-middle">
+                    <thead>
+                        <tr>
+                            <th style="width: 130px;">Roll No.</th>
+                            <th>Student Name</th>
+                            <th>Overall Slot Standing</th>
+                            <th class="text-end" style="width: 220px;">Attendance Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in students %}
+                            {% set st = row.student %}
+                            <tr>
+                                <td>
+                                    <span class="badge bg-light text-dark border font-monospace fw-bold fs-6">
+                                        {{ st.roll_no }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <div class="fw-bold text-dark">{{ st.user.name }}</div>
+                                    <div class="small text-secondary">{{ st.user.email }}</div>
+                                </td>
+                                <td>
+                                    <div class="d-flex align-items-center gap-2">
+                                        {% if row.is_defaulter %}
+                                            <span class="badge-status-defaulter">
+                                                <i class="bi bi-exclamation-triangle-fill"></i> Defaulter ({{ row.percentage }}%)
+                                            </span>
+                                        {% else %}
+                                            <span class="badge-status-safe">
+                                                <i class="bi bi-check-circle-fill"></i> Safe ({{ row.percentage }}%)
+                                            </span>
+                                        {% endif %}
+                                        <small class="text-muted">({{ row.attended }} sessions attended)</small>
+                                    </div>
+                                </td>
+                                <td class="text-end">
+                                    <div class="status-pill-group">
+                                        <input type="radio" 
+                                               id="pres_{{ st.roll_no }}" 
+                                               name="status_{{ st.roll_no }}" 
+                                               value="present" 
+                                               {% if row.current_status == 'present' %}checked{% endif %}
+                                               onchange="updateCounts()">
+                                        <label for="pres_{{ st.roll_no }}">
+                                            <i class="bi bi-check2"></i> Present
+                                        </label>
+
+                                        <input type="radio" 
+                                               id="abs_{{ st.roll_no }}" 
+                                               name="status_{{ st.roll_no }}" 
+                                               value="absent" 
+                                               {% if row.current_status == 'absent' %}checked{% endif %}
+                                               onchange="updateCounts()">
+                                        <label for="abs_{{ st.roll_no }}">
+                                            <i class="bi bi-x"></i> Absent
+                                        </label>
+                                    </div>
+                                </td>
+                            </tr>
+                        {% else %}
+                            <tr>
+                                <td colspan="4" class="text-center py-4 text-secondary">
+                                    No active students registered in class {{ slot.classroom.class_name }} / Div {{ slot.classroom.division }}.
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            {% if students %}
+                <div class="mt-4 pt-3 border-top d-flex justify-content-end">
+                    <button type="submit" class="btn btn-primary-custom px-4 py-2 fs-6">
+                        <i class="bi bi-check2-circle me-1"></i> Save Attendance Records
+                    </button>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</form>
+
+<!-- Past Attendance Sessions Section -->
+<div class="card card-custom border-0">
+    <div class="card-body p-4">
+        <h3 class="h6 fw-bold text-dark mb-3">
+            <i class="bi bi-clock-history text-primary me-2"></i>Recent Attendance Sessions for this Slot
+        </h3>
+
+        {% if recent_sessions %}
+            <div class="table-responsive">
+                <table class="table table-custom align-middle">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Lecture Time</th>
+                            <th>Topic / Coverage</th>
+                            <th class="text-center">Present</th>
+                            <th class="text-center">Absent</th>
+                            <th class="text-center">Attendance %</th>
+                            <th class="text-end">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for rs in recent_sessions %}
+                            <tr>
+                                <td class="fw-semibold">
+                                    <i class="bi bi-calendar3 text-secondary me-1"></i> {{ rs.session.session_date }}
+                                </td>
+                                <td>
+                                    <span class="badge-lecture-time">
+                                        <i class="bi bi-clock"></i> {{ rs.session.lecture_time or '10:00 AM - 11:00 AM' }}
+                                    </span>
+                                </td>
+                                <td class="text-secondary">
+                                    {{ rs.session.topic or '—' }}
+                                </td>
+                                <td class="text-center fw-bold text-success">{{ rs.present_count }}</td>
+                                <td class="text-center fw-bold text-danger">{{ rs.absent_count }}</td>
+                                <td class="text-center">
+                                    <span class="fw-bold {% if rs.percentage < 75 %}text-danger{% else %}text-success{% endif %}">
+                                        {{ rs.percentage }}%
+                                    </span>
+                                </td>
+                                <td class="text-end">
+                                    <a href="{{ url_for('main.take_attendance', slot_id=slot.id, session_date=rs.session.session_date, lecture_time=(rs.session.lecture_time or slot.lecture_time or '10:00 AM - 11:00 AM')) }}" 
+                                       class="btn btn-sm btn-outline-primary rounded-pill px-3">
+                                        <i class="bi bi-pencil me-1"></i> Edit
+                                    </a>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <p class="text-secondary small mb-0">No past sessions recorded yet for this slot.</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function markAll(status) {
+    document.querySelectorAll(`input[type="radio"][value="${status}"]`).forEach(el => {
+        el.checked = true;
+    });
+    updateCounts();
+}
+
+function updateCounts() {
+    let present = 0;
+    let absent = 0;
+    document.querySelectorAll('input[type="radio"]:checked').forEach(el => {
+        if (el.value === 'present') present++;
+        else if (el.value === 'absent') absent++;
+    });
+    const cp = document.getElementById('countPresent');
+    const ca = document.getElementById('countAbsent');
+    if (cp) cp.textContent = present;
+    if (ca) ca.textContent = absent;
+}
+
+function formatTime12(timeStr) {
+    if (!timeStr) return '';
+    const parts = timeStr.split(':');
+    let h = parseInt(parts[0], 10);
+    const m = parts[1] || '00';
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    const hour12 = h % 12 || 12;
+    const hourPad = hour12 < 10 ? '0' + hour12 : hour12;
+    return `${hourPad}:${m} ${ampm}`;
+}
+
+function parseTime12To24(timeStr) {
+    if (!timeStr) return '10:00';
+    const match = timeStr.match(/(\d{1,2}):(\d{2})\s*(AM|PM)?/i);
+    if (!match) return '10:00';
+    let h = parseInt(match[1], 10);
+    const m = match[2];
+    const ampm = (match[3] || '').toUpperCase();
+    if (ampm === 'PM' && h < 12) h += 12;
+    if (ampm === 'AM' && h === 12) h = 0;
+    return `${h < 10 ? '0' + h : h}:${m}`;
+}
+
+function parseRange(rangeStr) {
+    if (!rangeStr) return { start: '10:00', end: '11:00' };
+    const parts = rangeStr.split('-');
+    if (parts.length === 2) {
+        return {
+            start: parseTime12To24(parts[0].trim()),
+            end: parseTime12To24(parts[1].trim())
+        };
+    }
+    return { start: '10:00', end: '11:00' };
+}
+
+function syncAttendanceTime() {
+    const sInput = document.getElementById('attStartTime');
+    const eInput = document.getElementById('attEndTime');
+    const hiddenInput = document.getElementById('lectureTimeInput');
+    const preview = document.getElementById('attTimePreview');
+    if (!sInput || !eInput || !hiddenInput) return;
+
+    const sVal = sInput.value || '10:00';
+    const eVal = eInput.value || '11:00';
+    const formattedRange = `${formatTime12(sVal)} - ${formatTime12(eVal)}`;
+    hiddenInput.value = formattedRange;
+    if (preview) preview.textContent = formattedRange;
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    updateCounts();
+
+    // Initialize watch face pickers from existing lecture_time
+    const hiddenInput = document.getElementById('lectureTimeInput');
+    const sInput = document.getElementById('attStartTime');
+    const eInput = document.getElementById('attEndTime');
+
+    if (hiddenInput && sInput && eInput) {
+        const parsed = parseRange(hiddenInput.value);
+        sInput.value = parsed.start;
+        eInput.value = parsed.end;
+        syncAttendanceTime();
+
+        sInput.addEventListener('input', syncAttendanceTime);
+        eInput.addEventListener('input', syncAttendanceTime);
+        sInput.addEventListener('change', syncAttendanceTime);
+        eInput.addEventListener('change', syncAttendanceTime);
+    }
+
+    // Preset buttons
+    document.querySelectorAll('.quick-att-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.preventDefault();
+            if (sInput && eInput) {
+                sInput.value = btn.getAttribute('data-start');
+                eInput.value = btn.getAttribute('data-end');
+                syncAttendanceTime();
+            }
+        });
+    });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,94 @@
+{% extends 'base.html' %}
+{% block title %}Select Login Portal · AttendWise{% endblock %}
+
+{% block content %}
+<div class="py-4 text-center">
+    <div class="mb-3">
+        <span class="badge bg-primary-subtle text-primary px-3 py-2 rounded-pill fw-semibold">
+            <i class="bi bi-shield-check me-1"></i> Role-Based Attendance Access
+        </span>
+    </div>
+    <h1 class="h2 fw-bold text-dark">Welcome to AttendWise</h1>
+    <p class="text-secondary mx-auto" style="max-width: 580px;">
+        Please select your role portal below to log in or register. Each portal is customized for your specific attendance and defaulter tracking needs.
+    </p>
+</div>
+
+<div class="row g-4 justify-content-center pb-5">
+    <!-- Student Portal Card -->
+    <div class="col-md-6 col-lg-4">
+        <a href="{{ url_for('auth.login', role='student') }}" class="portal-card">
+            <div class="portal-icon portal-icon-student">
+                <i class="bi bi-mortarboard-fill"></i>
+            </div>
+            <h2 class="h4 fw-bold text-dark mb-2">Student Portal</h2>
+            <p class="text-secondary small mb-4">
+                View your subject-wise attendance, overall percentage, and track your defaulter status in real time.
+            </p>
+            <div class="mt-auto">
+                <span class="btn btn-outline-primary w-100 rounded-pill fw-semibold py-2">
+                    Enter Student Portal <i class="bi bi-arrow-right ms-1"></i>
+                </span>
+                <div class="small text-secondary mt-2">
+                    Log in with Roll No. or Email
+                </div>
+            </div>
+        </a>
+    </div>
+
+    <!-- Faculty Portal Card -->
+    <div class="col-md-6 col-lg-4">
+        <a href="{{ url_for('auth.login', role='faculty') }}" class="portal-card">
+            <div class="portal-icon portal-icon-faculty">
+                <i class="bi bi-person-badge-fill"></i>
+            </div>
+            <h2 class="h4 fw-bold text-dark mb-2">Faculty Portal</h2>
+            <p class="text-secondary small mb-4">
+                Mark lecture & practical attendance with custom lecture times, and view live student defaulter reports.
+            </p>
+            <div class="mt-auto">
+                <span class="btn btn-outline-primary w-100 rounded-pill fw-semibold py-2" style="border-color: #7c3aed; color: #7c3aed;">
+                    Enter Faculty Portal <i class="bi bi-arrow-right ms-1"></i>
+                </span>
+                <div class="small text-secondary mt-2">
+                    For Professors & Instructors
+                </div>
+            </div>
+        </a>
+    </div>
+
+    <!-- Admin Portal Card -->
+    <div class="col-md-6 col-lg-4">
+        <a href="{{ url_for('auth.login', role='admin') }}" class="portal-card">
+            <div class="portal-icon portal-icon-admin">
+                <i class="bi bi-shield-lock-fill"></i>
+            </div>
+            <h2 class="h4 fw-bold text-dark mb-2">Administrator Portal</h2>
+            <p class="text-secondary small mb-4">
+                Manage academic classes, subjects, assign teaching slots to faculty, and oversee system user accounts.
+            </p>
+            <div class="mt-auto">
+                <span class="btn btn-outline-dark w-100 rounded-pill fw-semibold py-2">
+                    Enter Admin Portal <i class="bi bi-arrow-right ms-1"></i>
+                </span>
+                <div class="small text-secondary mt-2">
+                    System Administration
+                </div>
+            </div>
+        </a>
+    </div>
+</div>
+
+<div class="card card-custom border-0 bg-white p-4 text-center mx-auto" style="max-width: 650px;">
+    <h3 class="h6 fw-bold mb-2">Need to create an account?</h3>
+    <p class="text-secondary small mb-3">Self-service registration is available for new students and faculty members.</p>
+    <div class="d-flex justify-content-center gap-3">
+        <a href="{{ url_for('auth.register', role='student') }}" class="btn btn-sm btn-outline-primary rounded-pill px-3">
+            <i class="bi bi-person-plus me-1"></i> Student Registration
+        </a>
+        <a href="{{ url_for('auth.register', role='faculty') }}" class="btn btn-sm btn-outline-secondary rounded-pill px-3">
+            <i class="bi bi-briefcase me-1"></i> Faculty Registration
+        </a>
+    </div>
+</div>
+{% endblock %}

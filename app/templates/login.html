@@ -1,0 +1,165 @@
+{% extends 'base.html' %}
+{% block title %}{{ role|title }} Login · AttendWise{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center py-4">
+    <div class="col-md-7 col-lg-5">
+        
+        <!-- Role Switcher Nav Pills -->
+        <div class="d-flex justify-content-center p-1 bg-white rounded-pill border shadow-sm mb-4">
+            <a href="{{ url_for('auth.login', role='student') }}" class="btn btn-sm rounded-pill px-3 fw-semibold {% if role == 'student' %}btn-primary{% else %}text-secondary{% endif %}">
+                <i class="bi bi-mortarboard me-1"></i> Student
+            </a>
+            <a href="{{ url_for('auth.login', role='faculty') }}" class="btn btn-sm rounded-pill px-3 fw-semibold {% if role == 'faculty' %}btn-primary{% else %}text-secondary{% endif %}">
+                <i class="bi bi-person-badge me-1"></i> Faculty
+            </a>
+            <a href="{{ url_for('auth.login', role='admin') }}" class="btn btn-sm rounded-pill px-3 fw-semibold {% if role == 'admin' %}btn-primary{% else %}text-secondary{% endif %}">
+                <i class="bi bi-shield-lock me-1"></i> Admin
+            </a>
+        </div>
+
+        <div class="card card-custom border-0 p-4 p-md-5">
+            <div class="text-center mb-4">
+                <div class="portal-icon {% if role == 'student' %}portal-icon-student{% elif role == 'faculty' %}portal-icon-faculty{% else %}portal-icon-admin{% endif %} mx-auto mb-3" style="width: 56px; height: 56px; font-size: 1.6rem;">
+                    <i class="bi {% if role == 'student' %}bi-mortarboard-fill{% elif role == 'faculty' %}bi-person-badge-fill{% else %}bi-shield-lock-fill{% endif %}"></i>
+                </div>
+                <h1 class="h3 fw-bold text-dark mb-1">{{ role|title }} Sign In</h1>
+                <p class="text-secondary small">
+                    {% if role == 'student' %}
+                        Access your subject attendance & defaulter statistics.
+                    {% elif role == 'faculty' %}
+                        Manage lecture attendance, times, and student defaulters.
+                    {% else %}
+                        Sign in to the system management console.
+                    {% endif %}
+                </p>
+            </div>
+
+            <form method="post" action="{{ url_for('auth.login', role=role) }}" id="loginForm" novalidate>
+                <div class="mb-3">
+                    <label class="form-label fw-semibold small text-secondary">
+                        {% if role == 'student' %}
+                            Roll Number or Email Address
+                        {% else %}
+                            Email Address
+                        {% endif %}
+                    </label>
+                    <div class="input-group">
+                        <span class="input-group-text bg-light border-end-0 text-secondary">
+                            <i class="bi {% if role == 'student' %}bi-person-badge{% else %}bi-envelope{% endif %}"></i>
+                        </span>
+                        <input class="form-control border-start-0" 
+                               type="text" 
+                               name="identifier" 
+                               id="loginIdentifier"
+                               value="{{ identifier or '' }}"
+                               placeholder="{% if role == 'student' %}e.g. 101 or student@college.edu{% else %}e.g. {{ role }}@college.edu{% endif %}" 
+                               required 
+                               autofocus>
+                    </div>
+                    <div id="loginIdentifierFeedback" class="small mt-1 text-muted" style="font-size: 0.78rem;">
+                        {% if role == 'student' %}
+                            <i class="bi bi-info-circle me-1"></i> Enter your Roll Number or an approved email (@gmail.com, @college.edu, .edu).
+                        {% else %}
+                            <i class="bi bi-info-circle me-1"></i> Allowed email domains: <span class="fw-semibold">@gmail.com</span>, <span class="fw-semibold">@college.edu</span>, or institutional <span class="fw-semibold">.edu / .ac.in</span>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div class="mb-4">
+                    <label class="form-label fw-semibold small text-secondary">Password</label>
+                    <div class="input-group">
+                        <span class="input-group-text bg-light border-end-0 text-secondary">
+                            <i class="bi bi-lock"></i>
+                        </span>
+                        <input class="form-control border-start-0" 
+                               type="password" 
+                               name="password" 
+                               id="loginPassword"
+                               placeholder="Enter your password" 
+                               required>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn btn-primary-custom w-100 py-2 fs-6 mb-3">
+                    <i class="bi bi-box-arrow-in-right me-1"></i> Log In to {{ role|title }} Portal
+                </button>
+            </form>
+
+            <script>
+            (function() {
+                const role = "{{ role }}";
+                const form = document.getElementById('loginForm');
+                const idInput = document.getElementById('loginIdentifier');
+                const feedback = document.getElementById('loginIdentifierFeedback');
+
+                const allowedDomains = ['gmail.com', 'college.edu', 'outlook.com', 'yahoo.com', 'hotmail.com', 'icloud.com'];
+                const allowedSuffixes = ['.college.edu', '.edu', '.edu.in', '.ac.in'];
+
+                function checkDomain(val) {
+                    val = val.trim().toLowerCase();
+                    if (!val) {
+                        feedback.className = "small mt-1 text-muted";
+                        feedback.innerHTML = '<i class="bi bi-info-circle me-1"></i> Allowed: @gmail.com, @college.edu, .edu, .ac.in';
+                        return true;
+                    }
+
+                    if (val.includes('@')) {
+                        const parts = val.split('@');
+                        const domain = parts[1] || '';
+                        const valid = allowedDomains.includes(domain) || allowedSuffixes.some(s => domain.endsWith(s));
+                        if (valid) {
+                            feedback.className = "small mt-1 text-success fw-medium";
+                            feedback.innerHTML = '<i class="bi bi-check-circle me-1"></i> Valid email domain format recognized.';
+                            return true;
+                        } else {
+                            feedback.className = "small mt-1 text-danger fw-medium";
+                            feedback.innerHTML = '<i class="bi bi-exclamation-triangle me-1"></i> Domain not accepted. Please use @gmail.com, @college.edu, or .edu';
+                            return false;
+                        }
+                    } else if (role !== 'student') {
+                        feedback.className = "small mt-1 text-danger fw-medium";
+                        feedback.innerHTML = '<i class="bi bi-exclamation-triangle me-1"></i> Please enter an email address with @gmail.com or @college.edu';
+                        return false;
+                    } else {
+                        feedback.className = "small mt-1 text-success fw-medium";
+                        feedback.innerHTML = '<i class="bi bi-check-circle me-1"></i> Roll number format detected.';
+                        return true;
+                    }
+                }
+
+                idInput.addEventListener('input', () => checkDomain(idInput.value));
+
+                form.addEventListener('submit', function(e) {
+                    const ok = checkDomain(idInput.value);
+                    if (!ok) {
+                        e.preventDefault();
+                        idInput.focus();
+                    }
+                });
+            })();
+            </script>
+
+            <div class="text-center pt-3 border-top mt-2">
+                {% if role == 'student' %}
+                    <p class="small text-secondary mb-1">
+                        First time here? <a href="{{ url_for('auth.register', role='student') }}" class="fw-semibold text-primary">Register as a Student</a>
+                    </p>
+                {% elif role == 'faculty' %}
+                    <p class="small text-secondary mb-1">
+                        New instructor? <a href="{{ url_for('auth.register', role='faculty') }}" class="fw-semibold text-primary">Register Faculty Account</a>
+                    </p>
+                {% else %}
+                    <p class="small text-muted mb-1">
+                        <i class="bi bi-shield-exclamation me-1"></i> Admin accounts are initialized via environment settings.
+                    </p>
+                {% endif %}
+                <a href="{{ url_for('auth.login_portal') }}" class="small text-secondary d-inline-block mt-2">
+                    <i class="bi bi-arrow-left me-1"></i> Back to all login portals
+                </a>
+            </div>
+        </div>
+
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,375 @@
+{% extends 'base.html' %}
+{% block title %}Defaulter & Attendance Report · {{ slot.subject.name }} · AttendWise{% endblock %}
+
+{% block content %}
+<div class="mb-4">
+    <nav aria-label="breadcrumb" class="no-print">
+        <ol class="breadcrumb mb-2 small">
+            <li class="breadcrumb-item"><a href="{{ url_for('main.dashboard') }}">Dashboard</a></li>
+            <li class="breadcrumb-item active">Defaulter & Attendance Report</li>
+        </ol>
+    </nav>
+    <div class="d-flex flex-wrap justify-content-between align-items-center">
+        <div>
+            <h1 class="h3 fw-bold text-dark mb-1">Student Attendance & Defaulter Report</h1>
+            <p class="text-secondary mb-0">
+                <strong>{{ slot.subject.name }}</strong> ({{ slot.subject_code }}) &bull; 
+                Class: <span class="fw-semibold text-dark">{{ slot.classroom.class_name }} / Div {{ slot.classroom.division }}</span> &bull; 
+                Slot: <span class="badge bg-light text-dark border">{{ slot.slot_name }} ({{ slot.slot_type|title }})</span> &bull; 
+                Lecture Time: <span class="badge-lecture-time"><i class="bi bi-clock"></i> {{ slot.lecture_time or '10:00 AM - 11:00 AM' }}</span>
+            </p>
+        </div>
+        <div class="mt-2 mt-md-0 d-flex gap-2 no-print">
+            <button onclick="window.print()" class="btn btn-outline-dark btn-sm rounded-pill fw-semibold px-3">
+                <i class="bi bi-printer me-1"></i> Print Defaulter Notice
+            </button>
+            <a href="{{ url_for('main.take_attendance', slot_id=slot.id) }}" class="btn btn-primary-custom btn-sm fw-semibold px-3">
+                <i class="bi bi-check2-square me-1"></i> Mark Attendance
+            </a>
+            <a href="{{ url_for('main.dashboard') }}" class="btn btn-light btn-sm rounded-pill border fw-semibold px-3">
+                <i class="bi bi-arrow-left me-1"></i> Back
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- Summary Metric Cards -->
+<div class="row g-3 mb-4">
+    <div class="col-sm-6 col-lg-3">
+        <div class="metric-card indigo">
+            <div class="metric-label">Total Enrolled</div>
+            <div class="metric-value">{{ students|length }}</div>
+            <div class="metric-sub">Active students in class</div>
+        </div>
+    </div>
+
+    <div class="col-sm-6 col-lg-3">
+        <div class="metric-card">
+            <div class="metric-label">Sessions Conducted</div>
+            <div class="metric-value">{{ total_sessions }}</div>
+            <div class="metric-sub">Recorded attendance sessions</div>
+        </div>
+    </div>
+
+    <div class="col-sm-6 col-lg-3">
+        <div class="metric-card danger">
+            <div class="metric-label">Defaulters (< 75%)</div>
+            <div class="metric-value text-danger">{{ defaulters_count }}</div>
+            <div class="metric-sub">Students below 75% threshold</div>
+        </div>
+    </div>
+
+    <div class="col-sm-6 col-lg-3">
+        <div class="metric-card success">
+            <div class="metric-label">Not Defaulter / Safe</div>
+            <div class="metric-value text-success">{{ safe_count }}</div>
+            <div class="metric-sub">Class average: {{ class_avg }}%</div>
+        </div>
+    </div>
+</div>
+
+<!-- Main Students Defaulter List -->
+<div class="card card-custom border-0 mb-4">
+    <div class="card-body p-4">
+        <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 pb-3 border-bottom gap-2 no-print">
+            <!-- Filter Tabs -->
+            <div class="d-flex gap-2">
+                <button class="filter-pill active" onclick="filterStudents('all', this)">
+                    All Students ({{ students|length }})
+                </button>
+                <button class="filter-pill" onclick="filterStudents('defaulter', this)">
+                    <span class="text-danger"><i class="bi bi-exclamation-circle-fill"></i> Defaulters ({{ defaulters_count }})</span>
+                </button>
+                <button class="filter-pill" onclick="filterStudents('safe', this)">
+                    <span class="text-success"><i class="bi bi-check-circle-fill"></i> Safe / Regular ({{ safe_count }})</span>
+                </button>
+            </div>
+
+            <!-- Search Input -->
+            <div style="min-width: 250px;">
+                <div class="input-group input-group-sm">
+                    <span class="input-group-text bg-light text-secondary"><i class="bi bi-search"></i></span>
+                    <input type="text" id="searchBox" class="form-control" placeholder="Search by name or roll number..." onkeyup="searchTable()">
+                </div>
+            </div>
+        </div>
+
+        <div class="table-responsive">
+            <table class="table table-custom align-middle" id="reportTable">
+                <thead>
+                    <tr>
+                        <th style="width: 120px;">Roll No.</th>
+                        <th>Student Name & Email</th>
+                        <th class="text-center">Attended</th>
+                        <th class="text-center">Absent</th>
+                        <th class="text-center">Total Sessions</th>
+                        <th class="text-center" style="width: 140px;">Percentage</th>
+                        <th class="text-center">Defaulter Status</th>
+                        <th>Attendance Guidance</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for st in students %}
+                        <tr class="student-row" data-status="{% if st.is_defaulter %}defaulter{% elif not total_sessions %}none{% else %}safe{% endif %}">
+                            <td>
+                                <span class="badge bg-light text-dark border font-monospace fw-bold fs-6">
+                                    {{ st.roll_no }}
+                                </span>
+                            </td>
+                            <td>
+                                <div class="fw-bold text-dark student-name">{{ st.name }}</div>
+                                <div class="small text-secondary">{{ st.email }}</div>
+                            </td>
+                            <td class="text-center fw-bold text-success">{{ st.attended }}</td>
+                            <td class="text-center fw-bold text-danger">{{ st.absent }}</td>
+                            <td class="text-center fw-semibold">{{ st.total }}</td>
+                            <td class="text-center">
+                                <div class="fw-bold {% if st.is_defaulter %}text-danger{% elif not total_sessions %}text-secondary{% else %}text-success{% endif %}">
+                                    {{ st.percentage }}%
+                                </div>
+                                <div class="progress-custom mt-1">
+                                    <div class="progress-bar {% if st.is_defaulter %}progress-bar-defaulter{% else %}progress-bar-safe{% endif %}" 
+                                         style="width: {{ [st.percentage, 100]|min }}%"></div>
+                                </div>
+                            </td>
+                            <td class="text-center">
+                                {% if not total_sessions %}
+                                    <span class="badge-status-none"><i class="bi bi-dash"></i> No Sessions</span>
+                                {% elif st.is_defaulter %}
+                                    <span class="badge-status-defaulter">
+                                        <i class="bi bi-exclamation-octagon-fill"></i> Defaulter (< 75%)
+                                    </span>
+                                {% else %}
+                                    <span class="badge-status-safe">
+                                        <i class="bi bi-check-circle-fill"></i> Safe (≥ 75%)
+                                    </span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if not total_sessions %}
+                                    <span class="small text-muted">No attendance recorded yet</span>
+                                {% elif st.is_defaulter %}
+                                    <span class="small text-danger fw-semibold">
+                                        <i class="bi bi-exclamation-triangle-fill me-1"></i>Must attend next <strong>{{ st.classes_needed }}</strong> class(es)
+                                    </span>
+                                {% else %}
+                                    <span class="small text-success">
+                                        <i class="bi bi-shield-check me-1"></i>Safe buffer: Can miss <strong>{{ st.safe_margin }}</strong>
+                                    </span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% else %}
+                        <tr>
+                            <td colspan="8" class="text-center py-4 text-secondary">
+                                No active students registered in this class.
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Conducted Lecture Sessions & Attendance Log Card -->
+<div class="card card-custom border-0 mb-4">
+    <div class="card-body p-4">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <div>
+                <h2 class="h5 fw-bold text-dark mb-0">
+                    <i class="bi bi-calendar2-week-fill text-primary me-2"></i>Conducted Lectures & Attendance Logs
+                </h2>
+                <small class="text-secondary">Keep an eye on individual lecture dates, timings, topics, and student attendance</small>
+            </div>
+            <span class="badge bg-light text-secondary border px-3 py-2 rounded-pill">
+                Total Conducted: <strong>{{ sessions_data|length }}</strong>
+            </span>
+        </div>
+
+        <div class="table-responsive">
+            <table class="table table-custom align-middle">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Lecture Timing</th>
+                        <th>Topic Covered</th>
+                        <th class="text-center">Present</th>
+                        <th class="text-center">Absent</th>
+                        <th class="text-center">Turnout</th>
+                        <th class="text-end">Student Sheet</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in sessions_data %}
+                        {% set sess = item.session %}
+                        <tr>
+                            <td>
+                                <span class="badge bg-white text-dark border p-2 shadow-sm rounded-3">
+                                    <i class="bi bi-calendar-event text-primary me-1"></i>
+                                    <strong>{{ sess.session_date.strftime('%d %b %Y') }}</strong>
+                                </span>
+                            </td>
+                            <td>
+                                <span class="badge-lecture-time">
+                                    <i class="bi bi-clock"></i> {{ sess.lecture_time or (slot.lecture_time or '10:00 AM - 11:00 AM') }}
+                                </span>
+                            </td>
+                            <td>
+                                <span class="small text-dark">{{ sess.topic or 'Standard Lecture' }}</span>
+                            </td>
+                            <td class="text-center fw-bold text-success">{{ item.present_count }}</td>
+                            <td class="text-center fw-bold text-danger">{{ item.absent_count }}</td>
+                            <td class="text-center">
+                                <span class="fw-bold {% if item.percentage < 75 %}text-danger{% else %}text-success{% endif %}">
+                                    {{ item.percentage }}%
+                                </span>
+                            </td>
+                            <td class="text-end">
+                                <button type="button" class="btn btn-sm btn-outline-primary rounded-pill px-3" data-bs-toggle="modal" data-bs-target="#viewSlotSessionModal{{ sess.id }}">
+                                    <i class="bi bi-people-fill me-1"></i> View Sheet
+                                </button>
+
+                                <!-- Session Attendance Sheet Modal -->
+                                <div class="modal fade" id="viewSlotSessionModal{{ sess.id }}" tabindex="-1" aria-hidden="true">
+                                    <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
+                                        <div class="modal-content border-0 shadow">
+                                            <div class="modal-header">
+                                                <div>
+                                                    <h5 class="modal-title fw-bold text-dark mb-0">
+                                                        <i class="bi bi-clipboard-check text-primary me-2"></i>Attendance Sheet
+                                                    </h5>
+                                                    <small class="text-secondary">
+                                                        Date: <strong>{{ sess.session_date.strftime('%A, %d %B %Y') }}</strong> &bull; Time: <strong>{{ sess.lecture_time }}</strong>
+                                                    </small>
+                                                </div>
+                                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                            </div>
+                                            <div class="modal-body p-4 text-start">
+                                                <div class="p-3 bg-light rounded-3 mb-3 border">
+                                                    <div class="row g-2">
+                                                        <div class="col-sm-6">
+                                                            <strong>Subject:</strong> {{ slot.subject.name }} ({{ slot.subject_code }})<br>
+                                                            <strong>Class:</strong> {{ slot.classroom.class_name }} (Div {{ slot.classroom.division }})
+                                                        </div>
+                                                        <div class="col-sm-6">
+                                                            <strong>Topic:</strong> {{ sess.topic or 'Standard Lecture' }}<br>
+                                                            <strong>Turnout:</strong> <span class="text-success fw-bold">{{ item.present_count }} Present</span> / <span class="text-danger fw-bold">{{ item.absent_count }} Absent</span> ({{ item.percentage }}%)
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <div class="table-responsive">
+                                                    <table class="table table-sm align-middle table-hover">
+                                                        <thead class="table-light">
+                                                            <tr>
+                                                                <th style="width: 120px;">Roll No</th>
+                                                                <th>Student Name</th>
+                                                                <th class="text-end">Status</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            {% for att in item.records %}
+                                                                <tr>
+                                                                    <td class="font-monospace fw-bold">{{ att.roll_no }}</td>
+                                                                    <td>{{ att.student.user.name if att.student and att.student.user else 'Student' }}</td>
+                                                                    <td class="text-end">
+                                                                        {% if att.status == 'present' %}
+                                                                            <span class="badge bg-success-subtle text-success border border-success-subtle px-3 py-1">
+                                                                                <i class="bi bi-check-circle-fill me-1"></i> Present
+                                                                            </span>
+                                                                        {% else %}
+                                                                            <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-3 py-1">
+                                                                                <i class="bi bi-x-circle-fill me-1"></i> Absent
+                                                                            </span>
+                                                                        {% endif %}
+                                                                    </td>
+                                                                </tr>
+                                                            {% else %}
+                                                                <tr>
+                                                                    <td colspan="3" class="text-center text-muted py-3">No student records recorded for this lecture.</td>
+                                                                </tr>
+                                                            {% endfor %}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            </div>
+                                            <div class="modal-footer">
+                                                <button type="button" class="btn btn-secondary rounded-pill px-3" data-bs-dismiss="modal">Close</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </td>
+                        </tr>
+                    {% else %}
+                        <tr>
+                            <td colspan="7" class="text-center py-4 text-secondary">
+                                <i class="bi bi-calendar-x fs-3 d-block mb-2 text-muted"></i>
+                                No lectures recorded for this teaching slot yet.
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Printable Notice Footer -->
+<div class="d-none d-print-block mt-5 pt-4 border-top">
+    <div class="row text-center">
+        <div class="col-4">
+            <p class="mb-4">_____________________________</p>
+            <strong>Subject Faculty In-Charge</strong>
+        </div>
+        <div class="col-4">
+            <p class="mb-4">_____________________________</p>
+            <strong>Class Teacher</strong>
+        </div>
+        <div class="col-4">
+            <p class="mb-4">_____________________________</p>
+            <strong>Head of Department</strong>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentFilter = 'all';
+
+function filterStudents(filterType, btn) {
+    currentFilter = filterType;
+    document.querySelectorAll('.filter-pill').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    applyFilters();
+}
+
+function searchTable() {
+    applyFilters();
+}
+
+function applyFilters() {
+    const q = document.getElementById('searchBox').value.toLowerCase().trim();
+    const rows = document.querySelectorAll('.student-row');
+
+    rows.forEach(row => {
+        const status = row.getAttribute('data-status');
+        const text = row.textContent.toLowerCase();
+        
+        let matchFilter = (currentFilter === 'all') || 
+                          (currentFilter === 'defaulter' && status === 'defaulter') || 
+                          (currentFilter === 'safe' && status === 'safe');
+
+        let matchSearch = !q || text.includes(q);
+
+        if (matchFilter && matchSearch) {
+            row.style.display = '';
+        } else {
+            row.style.display = 'none';
+        }
+    });
+}
+</script>
+{% endblock %}

@@ -1,0 +1,433 @@
+{% extends 'base.html' %}
+{% block title %}{{ role|title }} Dashboard · AttendWise{% endblock %}
+
+{% block content %}
+{% if role == 'student' %}
+    <!-- ========================================== -->
+    <!--           STUDENT DASHBOARD                -->
+    <!-- ========================================== -->
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 fw-bold text-dark mb-1">My Attendance Dashboard</h1>
+            <p class="text-secondary mb-0">
+                {% if student %}
+                    Roll No: <span class="badge bg-light text-dark border fw-bold">{{ student.roll_no }}</span>
+                    &bull; Class: <span class="fw-semibold text-dark">{{ student.classroom.class_name }} (Div {{ student.classroom.division }})</span>
+                {% else %}
+                    Student Profile
+                {% endif %}
+            </p>
+        </div>
+        <div class="mt-2 mt-md-0">
+            <span class="badge bg-white text-secondary border px-3 py-2 rounded-pill shadow-sm">
+                <i class="bi bi-shield-check text-primary me-1"></i> Defaulter Benchmark: <strong>75%</strong>
+            </span>
+        </div>
+    </div>
+
+    <!-- Defaulter Warning Banner -->
+    {% if overall_total > 0 %}
+        {% if overall_defaulter %}
+            <div class="banner-defaulter mb-4 shadow-sm">
+                <div class="d-flex align-items-start gap-3">
+                    <i class="bi bi-exclamation-triangle-fill fs-3 text-danger mt-1"></i>
+                    <div>
+                        <h2 class="h5 fw-bold mb-1 text-danger">Attendance Defaulter Warning</h2>
+                        <p class="mb-2">
+                            Your overall attendance is currently <strong>{{ overall }}%</strong>, which is below the mandatory <strong>75%</strong> threshold.
+                            You are marked as a <strong>Defaulter</strong>.
+                        </p>
+                        <div class="small bg-white p-2 px-3 rounded-3 border d-inline-block text-dark">
+                            <i class="bi bi-arrow-up-circle-fill text-danger me-1"></i>
+                            <strong>Required Action:</strong> You must attend at least the next <strong>{{ overall_classes_needed }}</strong> consecutive classes to cross 75% and clear your defaulter status.
+                        </div>
+                    </div>
+                </div>
+            </div>
+        {% else %}
+            <div class="banner-safe mb-4 shadow-sm">
+                <div class="d-flex align-items-start gap-3">
+                    <i class="bi bi-check-circle-fill fs-3 text-success mt-1"></i>
+                    <div>
+                        <h2 class="h5 fw-bold mb-1 text-success">Good Standing — Not a Defaulter</h2>
+                        <p class="mb-1">
+                            Great job! Your overall attendance is <strong>{{ overall }}%</strong>, safely maintaining attendance above the <strong>75%</strong> threshold.
+                        </p>
+                        <small class="text-secondary">
+                            {% if overall_safe_margin > 0 %}
+                                Safe margin: You can miss up to <strong>{{ overall_safe_margin }}</strong> lecture(s) without falling below 75%.
+                            {% else %}
+                                Warning margin: Attending all upcoming lectures is recommended to prevent falling below 75%.
+                            {% endif %}
+                        </small>
+                    </div>
+                </div>
+            </div>
+        {% endif %}
+    {% endif %}
+
+    <!-- Top Summary Metrics -->
+    <div class="row g-3 mb-4">
+        <div class="col-sm-6 col-lg-3">
+            <div class="metric-card {% if overall_defaulter %}danger{% else %}success{% endif %}">
+                <div class="metric-label">Overall Attendance</div>
+                <div class="metric-value">{{ overall }}%</div>
+                <div class="progress-custom mt-2">
+                    <div class="progress-bar {% if overall_defaulter %}progress-bar-defaulter{% else %}progress-bar-safe{% endif %}" 
+                         style="width: {{ [overall, 100]|min }}%"></div>
+                </div>
+                <div class="metric-sub">{{ overall_attended }} attended out of {{ overall_total }} sessions</div>
+            </div>
+        </div>
+
+        <div class="col-sm-6 col-lg-3">
+            <div class="metric-card indigo">
+                <div class="metric-label">Defaulter Status</div>
+                <div class="mt-1">
+                    {% if not overall_total %}
+                        <span class="badge-status-none"><i class="bi bi-dash-circle"></i> No Sessions</span>
+                    {% elif overall_defaulter %}
+                        <span class="badge-status-defaulter"><i class="bi bi-exclamation-octagon-fill"></i> Defaulter (< 75%)</span>
+                    {% else %}
+                        <span class="badge-status-safe"><i class="bi bi-shield-check"></i> Safe / Regular (≥ 75%)</span>
+                    {% endif %}
+                </div>
+                <div class="metric-sub mt-2">Minimum required: 75.0%</div>
+            </div>
+        </div>
+
+        <div class="col-sm-6 col-lg-3">
+            <div class="metric-card">
+                <div class="metric-label">Total Subjects</div>
+                <div class="metric-value">{{ summaries|length }}</div>
+                <div class="metric-sub">Enrolled active courses</div>
+            </div>
+        </div>
+
+        <div class="col-sm-6 col-lg-3">
+            <div class="metric-card warning">
+                <div class="metric-label">Sessions Attended</div>
+                <div class="metric-value">{{ overall_attended }} <span class="fs-6 text-secondary fw-normal">/ {{ overall_total }}</span></div>
+                <div class="metric-sub">{{ overall_total - overall_attended }} session(s) absent</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Subject Wise Breakdown Table -->
+    <div class="card card-custom border-0 mb-4">
+        <div class="card-body p-4">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h2 class="h5 fw-bold text-dark mb-0">
+                    <i class="bi bi-journal-text text-primary me-2"></i>Subject-Wise Attendance Breakdown
+                </h2>
+                <span class="small text-secondary">Updated real-time with marked lectures</span>
+            </div>
+
+            <div class="table-responsive">
+                <table class="table table-custom align-middle">
+                    <thead>
+                        <tr>
+                            <th>Subject & Code</th>
+                            <th>Progress</th>
+                            <th class="text-center">Attended</th>
+                            <th class="text-center">Absent</th>
+                            <th class="text-center">Total</th>
+                            <th class="text-center">Percentage</th>
+                            <th class="text-center">Status</th>
+                            <th>Guidance</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for s in summaries %}
+                            <tr>
+                                <td>
+                                    <div class="fw-bold text-dark">{{ s.subject }}</div>
+                                    <span class="badge bg-light text-secondary border small">{{ s.code }}</span>
+                                </td>
+                                <td style="width: 140px;">
+                                    <div class="progress-custom">
+                                        <div class="progress-bar {% if s.defaulter %}progress-bar-defaulter{% else %}progress-bar-safe{% endif %}" 
+                                             style="width: {{ [s.percentage, 100]|min }}%"></div>
+                                    </div>
+                                    <div class="small text-muted mt-1">{{ s.percentage }}%</div>
+                                </td>
+                                <td class="text-center fw-semibold text-success">{{ s.attended }}</td>
+                                <td class="text-center fw-semibold text-danger">{{ s.absent }}</td>
+                                <td class="text-center fw-semibold">{{ s.total }}</td>
+                                <td class="text-center">
+                                    <span class="fw-bold {% if s.defaulter %}text-danger{% elif not s.total %}text-secondary{% else %}text-success{% endif %}">
+                                        {{ s.percentage }}%
+                                    </span>
+                                </td>
+                                <td class="text-center">
+                                    {% if not s.total %}
+                                        <span class="badge-status-none"><i class="bi bi-dash"></i> No Lectures</span>
+                                    {% elif s.defaulter %}
+                                        <span class="badge-status-defaulter"><i class="bi bi-exclamation-circle-fill"></i> Defaulter</span>
+                                    {% else %}
+                                        <span class="badge-status-safe"><i class="bi bi-check-circle-fill"></i> Safe</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if not s.total %}
+                                        <span class="small text-muted">Classes haven't started yet</span>
+                                    {% elif s.defaulter %}
+                                        <span class="small text-danger fw-semibold">
+                                            <i class="bi bi-arrow-up-right me-1"></i>Attend next <strong>{{ s.classes_needed }}</strong> class(es)
+                                        </span>
+                                    {% else %}
+                                        <span class="small text-success">
+                                            <i class="bi bi-shield-check me-1"></i>Buffer: Can miss <strong>{{ s.safe_margin }}</strong>
+                                        </span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        {% else %}
+                            <tr>
+                                <td colspan="8" class="text-center py-4 text-secondary">
+                                    <i class="bi bi-calendar-x fs-3 d-block mb-2"></i>
+                                    No teaching slots assigned to your class yet. Please contact your administrator.
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Student's Recent Lecture Attendance History -->
+    <div class="card card-custom border-0 mb-4">
+        <div class="card-body p-4">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <div>
+                    <h2 class="h5 fw-bold text-dark mb-0">
+                        <i class="bi bi-calendar-check text-primary me-2"></i>My Lecture Attendance History
+                    </h2>
+                    <small class="text-secondary">Keep an eye on individual lecture dates, timings, and attendance status</small>
+                </div>
+                <span class="badge bg-light text-secondary border px-3 py-2 rounded-pill">
+                    Recorded Lectures: <strong>{{ recent_attendance|length }}</strong>
+                </span>
+            </div>
+
+            <div class="table-responsive">
+                <table class="table table-custom align-middle">
+                    <thead>
+                        <tr>
+                            <th>Lecture Date</th>
+                            <th>Timing</th>
+                            <th>Subject</th>
+                            <th>Faculty</th>
+                            <th>Topic</th>
+                            <th class="text-end">My Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for att in recent_attendance %}
+                            <tr>
+                                <td>
+                                    <span class="badge bg-white text-dark border p-2 shadow-sm rounded-3">
+                                        <i class="bi bi-calendar-event text-primary me-1"></i>
+                                        <strong>{{ att.session.session_date.strftime('%d %b %Y') }}</strong>
+                                    </span>
+                                </td>
+                                <td>
+                                    <span class="badge-lecture-time">
+                                        <i class="bi bi-clock"></i> {{ att.session.lecture_time or (att.session.slot.lecture_time if att.session.slot else '10:00 AM - 11:00 AM') }}
+                                    </span>
+                                </td>
+                                <td>
+                                    {% if att.session.slot and att.session.slot.subject %}
+                                        <div class="fw-bold text-dark">{{ att.session.slot.subject.name }}</div>
+                                        <span class="badge bg-light text-secondary border small">{{ att.session.slot.subject.code }}</span>
+                                    {% else %}
+                                        <span class="text-muted small">N/A</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if att.session.slot and att.session.slot.faculty %}
+                                        <span class="fw-semibold text-secondary small">{{ att.session.slot.faculty.user.name }}</span>
+                                    {% else %}
+                                        <span class="text-muted small">N/A</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <span class="small text-dark">{{ att.session.topic or 'Standard Lecture' }}</span>
+                                </td>
+                                <td class="text-end">
+                                    {% if att.status == 'present' %}
+                                        <span class="badge bg-success-subtle text-success border border-success-subtle px-3 py-2 rounded-pill">
+                                            <i class="bi bi-check-circle-fill me-1"></i> Present
+                                        </span>
+                                    {% else %}
+                                        <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-3 py-2 rounded-pill">
+                                            <i class="bi bi-x-circle-fill me-1"></i> Absent
+                                        </span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        {% else %}
+                            <tr>
+                                <td colspan="6" class="text-center py-4 text-secondary">
+                                    No lecture attendance recorded yet.
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Defaulter Policy Explanation Card -->
+    <div class="card card-custom border-0 bg-white p-4">
+        <h3 class="h6 fw-bold text-dark mb-2">
+            <i class="bi bi-info-circle text-primary me-2"></i>How the AttendWise Defaulter Policy Works
+        </h3>
+        <p class="text-secondary small mb-0">
+            Attendance is calculated dynamically from recorded lecture and practical sessions. 
+            Any student whose aggregate or subject attendance falls strictly below <strong>75.0%</strong> is marked as a <strong>Defaulter</strong>.
+            Make sure to attend upcoming classes promptly to keep your record above the required 75% requirement.
+        </p>
+    </div>
+
+{% else %}
+    <!-- ========================================== -->
+    <!--           FACULTY DASHBOARD                -->
+    <!-- ========================================== -->
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 fw-bold text-dark mb-1">Faculty Attendance Portal</h1>
+            <p class="text-secondary mb-0">
+                Welcome, <strong>Prof. {{ current_user.name }}</strong> &bull; Manage lecture attendance and monitor student defaulter lists.
+            </p>
+        </div>
+        <div class="mt-2 mt-md-0">
+            <span class="badge bg-white text-secondary border px-3 py-2 rounded-pill shadow-sm">
+                <i class="bi bi-mortarboard-fill text-primary me-1"></i> Defaulter Benchmark: <strong>75%</strong>
+            </span>
+        </div>
+    </div>
+
+    <!-- Quick Overview Stats -->
+    <div class="row g-3 mb-4">
+        <div class="col-sm-6 col-lg-4">
+            <div class="metric-card indigo">
+                <div class="metric-label">Assigned Teaching Slots</div>
+                <div class="metric-value">{{ summary_stats.total_slots }}</div>
+                <div class="metric-sub">Active lecture and practical batches</div>
+            </div>
+        </div>
+
+        <div class="col-sm-6 col-lg-4">
+            <div class="metric-card success">
+                <div class="metric-label">Total Sessions Conducted</div>
+                <div class="metric-value">{{ summary_stats.total_sessions }}</div>
+                <div class="metric-sub">Recorded with attendance across all slots</div>
+            </div>
+        </div>
+
+        <div class="col-sm-6 col-lg-4">
+            <div class="metric-card {% if summary_stats.total_defaulters > 0 %}danger{% else %}success{% endif %}">
+                <div class="metric-label">Current Defaulters (< 75%)</div>
+                <div class="metric-value">{{ summary_stats.total_defaulters }}</div>
+                <div class="metric-sub">Students below 75% across your classes</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Teaching Slots Section -->
+    <div class="mb-3 d-flex justify-content-between align-items-center">
+        <div>
+            <h2 class="h5 fw-bold text-dark mb-0">
+                <i class="bi bi-grid-fill text-primary me-2"></i>My Teaching Slots & Batches
+            </h2>
+            <small class="text-secondary">Take attendance with lecture time and inspect student defaulters for each slot</small>
+        </div>
+    </div>
+
+    <div class="row g-4">
+        {% for item in slots_data %}
+            {% set s = item.slot %}
+            <div class="col-md-6 col-xl-6">
+                <div class="card card-custom border-0 h-100">
+                    <div class="card-body p-4 d-flex flex-column">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <div>
+                                <span class="badge {% if s.slot_type == 'lecture' %}bg-primary-subtle text-primary border border-primary-subtle{% else %}bg-purple-subtle text-dark border{% endif %} px-2 py-1 rounded fw-semibold text-uppercase small">
+                                    <i class="bi {% if s.slot_type == 'lecture' %}bi-easel{% else %}bi-laptop{% endif %} me-1"></i>
+                                    {{ s.slot_type }}
+                                </span>
+                                <span class="badge bg-light text-secondary border px-2 py-1 rounded small ms-1">
+                                    {{ s.subject.code }}
+                                </span>
+                            </div>
+                            <span class="badge-lecture-time">
+                                <i class="bi bi-clock"></i> {{ item.lecture_time }}
+                            </span>
+                        </div>
+
+                        <h3 class="h5 fw-bold text-dark mb-1">
+                            {{ s.subject.name }}
+                        </h3>
+                        <div class="text-secondary small mb-3">
+                            <i class="bi bi-building me-1"></i> <strong>{{ s.classroom.class_name }} / Div {{ s.classroom.division }}</strong> &bull; Batch: {{ s.slot_name }}
+                        </div>
+
+                        <!-- Defaulter Stats Box -->
+                        <div class="bg-light p-3 rounded-3 mb-3 border">
+                            <div class="row g-2 text-center">
+                                <div class="col-4 border-end">
+                                    <div class="small text-secondary">Enrolled</div>
+                                    <div class="fw-bold text-dark fs-6">{{ item.total_students }}</div>
+                                </div>
+                                <div class="col-4 border-end">
+                                    <div class="small text-secondary">Lectures Held</div>
+                                    <div class="fw-bold text-dark fs-6">{{ item.total_sessions }}</div>
+                                </div>
+                                <div class="col-4">
+                                    <div class="small text-secondary">Defaulters</div>
+                                    <div class="fw-bold {% if item.defaulter_count > 0 %}text-danger{% else %}text-success{% endif %} fs-6">
+                                        {{ item.defaulter_count }}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {% if item.total_sessions > 0 %}
+                                <div class="mt-2 pt-2 border-top d-flex justify-content-between align-items-center small">
+                                    <span class="text-secondary">Class Attendance Average:</span>
+                                    <span class="fw-bold {% if item.average_percentage < 75 %}text-danger{% else %}text-success{% endif %}">
+                                        {{ item.average_percentage }}%
+                                    </span>
+                                </div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Action Buttons -->
+                        <div class="mt-auto d-flex gap-2">
+                            <a href="{{ url_for('main.take_attendance', slot_id=s.id) }}" class="btn btn-primary-custom flex-grow-1 fw-semibold py-2">
+                                <i class="bi bi-check2-square me-1"></i> Take Attendance
+                            </a>
+                            <a href="{{ url_for('main.slot_report', slot_id=s.id) }}" class="btn btn-outline-secondary px-3 fw-semibold py-2" title="View Defaulter List">
+                                <i class="bi bi-file-earmark-person me-1"></i> Defaulter List
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        {% else %}
+            <div class="col-12">
+                <div class="card card-custom border-0 p-5 text-center">
+                    <i class="bi bi-person-workspace fs-1 text-secondary mb-3"></i>
+                    <h2 class="h5 fw-bold text-dark">No Teaching Slots Assigned</h2>
+                    <p class="text-secondary small mx-auto" style="max-width: 480px;">
+                        The administrator has not yet assigned any lecture or practical teaching slots to your faculty account. 
+                        Please notify the administrator to assign your class and subjects.
+                    </p>
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+{% endif %}
+{% endblock %}

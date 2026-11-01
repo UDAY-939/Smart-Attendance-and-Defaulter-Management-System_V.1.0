@@ -1,0 +1,923 @@
+{% extends 'base.html' %}
+{% block title %}Administrator Panel · AttendWise{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center mb-4">
+    <div>
+        <h1 class="h3 fw-bold text-dark mb-1">Administrator Management Console</h1>
+        <p class="text-secondary mb-0">
+            Configure academic classes, subjects, assign faculty slots with lecture times, and manage accounts.
+        </p>
+    </div>
+    <div class="mt-2 mt-md-0">
+        <span class="badge bg-white text-secondary border px-3 py-2 rounded-pill shadow-sm">
+            <i class="bi bi-shield-check text-primary me-1"></i> Admin Privileges Active
+        </span>
+    </div>
+</div>
+
+<!-- Setup Guide Banner for New Admins -->
+<div class="card card-custom border-0 bg-primary-subtle text-primary p-3 mb-4">
+    <div class="d-flex align-items-center gap-3">
+        <i class="bi bi-lightbulb-fill fs-3"></i>
+        <div class="small">
+            <strong>Administrator Quick Workflow:</strong> 
+            1. Create <strong>Class & Division</strong> &rarr; 
+            2. Add <strong>Subjects</strong> &rarr; 
+            3. Have Faculty register (or check accounts below) &rarr; 
+            4. <strong>Assign Teaching Slots</strong> with scheduled lecture times &rarr; 
+            5. Students register into their class.
+        </div>
+    </div>
+</div>
+
+<!-- High-Level Stats Overview -->
+<div class="row g-3 mb-4">
+    <div class="col-sm-6 col-lg-3">
+        <div class="metric-card indigo">
+            <div class="metric-label">Registered Students</div>
+            <div class="metric-value">{{ stats.students_count }}</div>
+            <div class="metric-sub">Across all classes</div>
+        </div>
+    </div>
+
+    <div class="col-sm-6 col-lg-3">
+        <div class="metric-card success">
+            <div class="metric-label">Faculty Members</div>
+            <div class="metric-value">{{ stats.faculty_count }}</div>
+            <div class="metric-sub">Instructors & professors</div>
+        </div>
+    </div>
+
+    <div class="col-sm-6 col-lg-3">
+        <div class="metric-card">
+            <div class="metric-label">Classes / Subjects</div>
+            <div class="metric-value">{{ stats.classes_count }} <span class="fs-6 text-secondary fw-normal">/ {{ stats.subjects_count }}</span></div>
+            <div class="metric-sub">Configured curriculums</div>
+        </div>
+    </div>
+
+    <div class="col-sm-6 col-lg-3">
+        <div class="metric-card warning">
+            <div class="metric-label">Teaching Slots</div>
+            <div class="metric-value">{{ stats.slots_count }}</div>
+            <div class="metric-sub">{{ stats.sessions_count }} sessions recorded</div>
+        </div>
+    </div>
+</div>
+
+<!-- Navigation Tabs -->
+<ul class="nav nav-pills mb-4 gap-2" id="adminTabs" role="tablist">
+    <li class="nav-item">
+        <button class="nav-link active rounded-pill px-4 fw-semibold" id="slots-tab" data-bs-toggle="pill" data-bs-target="#slots-pane" type="button">
+            <i class="bi bi-calendar-check me-1"></i> Teaching Slots ({{ slots|length }})
+        </button>
+    </li>
+    <li class="nav-item">
+        <button class="nav-link rounded-pill px-4 fw-semibold" id="classes-tab" data-bs-toggle="pill" data-bs-target="#classes-pane" type="button">
+            <i class="bi bi-building me-1"></i> Classes & Subjects
+        </button>
+    </li>
+    <li class="nav-item">
+        <button class="nav-link rounded-pill px-4 fw-semibold" id="users-tab" data-bs-toggle="pill" data-bs-target="#users-pane" type="button">
+            <i class="bi bi-people me-1"></i> User Accounts ({{ users|length }})
+        </button>
+    </li>
+    <li class="nav-item">
+        <button class="nav-link rounded-pill px-4 fw-semibold" id="sessions-tab" data-bs-toggle="pill" data-bs-target="#sessions-pane" type="button">
+            <i class="bi bi-clock-history me-1"></i> Conducted Lectures & Logs ({{ session_logs|length }})
+        </button>
+    </li>
+</ul>
+
+<div class="tab-content" id="adminTabsContent">
+    <!-- ============================================== -->
+    <!-- TAB 1: TEACHING SLOTS (With Lecture Time)      -->
+    <!-- ============================================== -->
+    <div class="tab-pane fade show active" id="slots-pane">
+        <div class="card card-custom border-0 mb-4">
+            <div class="card-body p-4">
+                <h2 class="h5 fw-bold text-dark mb-1">
+                    <i class="bi bi-plus-circle text-primary me-2"></i>Assign New Teaching Slot
+                </h2>
+                <p class="text-secondary small mb-3">Link a Subject, Class, and Faculty with an allocated Lecture Time slot.</p>
+
+                <form method="post" action="{{ url_for('admin.add_slot') }}">
+                    <div class="row g-3">
+                        <div class="col-md-3">
+                            <label class="form-label fw-semibold small text-secondary">Subject</label>
+                            <select class="form-select" name="subject_code" required>
+                                <option value="">Select subject...</option>
+                                {% for s in subjects %}
+                                    <option value="{{ s.code }}">{{ s.code }} — {{ s.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div class="col-md-3">
+                            <label class="form-label fw-semibold small text-secondary">Classroom</label>
+                            <select class="form-select" name="class_id" required>
+                                <option value="">Select class...</option>
+                                {% for c in classes %}
+                                    <option value="{{ c.id }}">{{ c.class_name }} / Div {{ c.division }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div class="col-md-3">
+                            <label class="form-label fw-semibold small text-secondary">Faculty Instructor</label>
+                            <select class="form-select" name="faculty_id" required>
+                                <option value="">Select faculty...</option>
+                                {% for f in faculty %}
+                                    <option value="{{ f.id }}">{{ f.user.name }} ({{ f.user.email }})</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div class="col-md-3">
+                            <label class="form-label fw-semibold small text-secondary">Slot Type</label>
+                            <select class="form-select" name="slot_type">
+                                <option value="lecture">Lecture</option>
+                                <option value="practical">Practical / Lab</option>
+                            </select>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold small text-secondary">Slot / Batch Name</label>
+                            <input class="form-control" name="slot_name" placeholder="e.g. Theory Lecture 1 or Batch A1" required>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold small text-secondary d-flex justify-content-between align-items-center">
+                                <span><i class="bi bi-clock-fill text-primary me-1"></i> Scheduled Lecture Time</span>
+                                <span class="badge bg-primary-subtle text-primary border border-primary-subtle font-monospace" id="adminSlotTimePreview">10:00 AM - 11:00 AM</span>
+                            </label>
+
+                            <div class="row g-2 align-items-center">
+                                <div class="col-6">
+                                    <div class="input-group input-group-sm">
+                                        <span class="input-group-text bg-light text-primary" title="Start Time (Watch Face)"><i class="bi bi-clock"></i></span>
+                                        <input type="time" class="form-control" id="adminStartTime" value="10:00" title="Click watch face to select start time">
+                                    </div>
+                                    <div class="form-text small mt-0">Start Time</div>
+                                </div>
+                                <div class="col-6">
+                                    <div class="input-group input-group-sm">
+                                        <span class="input-group-text bg-light text-primary" title="End Time (Watch Face)"><i class="bi bi-clock-history"></i></span>
+                                        <input type="time" class="form-control" id="adminEndTime" value="11:00" title="Click watch face to select end time">
+                                    </div>
+                                    <div class="form-text small mt-0">End Time</div>
+                                </div>
+                            </div>
+
+                            <!-- Hidden synced lecture_time value passed to server -->
+                            <input type="hidden" name="lecture_time" id="adminLectureTimeInput" value="10:00 AM - 11:00 AM">
+
+                            <!-- Quick 1-click preset badges to avoid manual typing -->
+                            <div class="d-flex flex-wrap gap-1 mt-2">
+                                <span class="small text-muted me-1">Presets:</span>
+                                <button type="button" class="badge bg-light text-dark border quick-admin-slot-btn" data-start="09:00" data-end="10:00">09-10 AM</button>
+                                <button type="button" class="badge bg-light text-dark border quick-admin-slot-btn" data-start="10:00" data-end="11:00">10-11 AM</button>
+                                <button type="button" class="badge bg-light text-dark border quick-admin-slot-btn" data-start="11:15" data-end="12:15">11:15-12:15</button>
+                                <button type="button" class="badge bg-light text-dark border quick-admin-slot-btn" data-start="12:15" data-end="13:15">12:15-01:15</button>
+                                <button type="button" class="badge bg-light text-dark border quick-admin-slot-btn" data-start="14:00" data-end="15:00">02-03 PM</button>
+                                <button type="button" class="badge bg-light text-dark border quick-admin-slot-btn" data-start="15:00" data-end="16:00">03-04 PM</button>
+                            </div>
+                        </div>
+
+                        <div class="col-12 mt-3">
+                            <button class="btn btn-primary-custom px-4">
+                                <i class="bi bi-link-45deg me-1"></i> Assign Slot
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Assigned Slots Table -->
+        <div class="card card-custom border-0">
+            <div class="card-body p-4">
+                <h3 class="h5 fw-bold text-dark mb-3">All Active & Assigned Teaching Slots</h3>
+                <div class="table-responsive">
+                    <table class="table table-custom align-middle">
+                        <thead>
+                            <tr>
+                                <th>Subject</th>
+                                <th>Class</th>
+                                <th>Slot Name</th>
+                                <th>Type</th>
+                                <th>Faculty</th>
+                                <th>Scheduled Time</th>
+                                <th>Status</th>
+                                <th class="text-end">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for s in slots %}
+                                <tr>
+                                    <td>
+                                        <div class="fw-bold">{{ s.subject.name }}</div>
+                                        <span class="badge bg-light text-secondary border small">{{ s.subject.code }}</span>
+                                    </td>
+                                    <td class="fw-semibold">{{ s.classroom.class_name }} (Div {{ s.classroom.division }})</td>
+                                    <td>{{ s.slot_name }}</td>
+                                    <td>
+                                        <span class="badge bg-light text-dark border">{{ s.slot_type|title }}</span>
+                                    </td>
+                                    <td>{{ s.faculty.user.name }}</td>
+                                    <td>
+                                        <span class="badge-lecture-time">
+                                            <i class="bi bi-clock"></i> {{ s.lecture_time or '10:00 AM - 11:00 AM' }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        {% if s.active %}
+                                            <span class="badge bg-success-subtle text-success border border-success-subtle">Active</span>
+                                        {% else %}
+                                            <span class="badge bg-danger-subtle text-danger border border-danger-subtle">Disabled</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-end">
+                                        <div class="d-flex justify-content-end gap-1">
+                                            <a href="{{ url_for('main.slot_report', slot_id=s.id) }}" class="btn btn-sm btn-outline-secondary rounded-pill px-2" title="View Defaulter List">
+                                                <i class="bi bi-file-earmark-person"></i> Report
+                                            </a>
+                                            <form method="post" action="{{ url_for('admin.toggle_slot', sid=s.id) }}" class="d-inline">
+                                                <button class="btn btn-sm {% if s.active %}btn-outline-warning{% else %}btn-outline-success{% endif %} rounded-pill px-2" title="{{ 'Disable Slot' if s.active else 'Enable Slot' }}">
+                                                    {{ 'Disable' if s.active else 'Enable' }}
+                                                </button>
+                                            </form>
+                                            <button type="button" class="btn btn-sm btn-outline-danger rounded-pill px-2" data-bs-toggle="modal" data-bs-target="#deleteSlotModal{{ s.id }}" title="Delete Slot">
+                                                <i class="bi bi-trash3"></i> Delete
+                                            </button>
+                                        </div>
+
+                                        <!-- Delete Slot Modal -->
+                                        <div class="modal fade" id="deleteSlotModal{{ s.id }}" tabindex="-1" aria-hidden="true">
+                                            <div class="modal-dialog modal-dialog-centered">
+                                                <div class="modal-content border-0 shadow">
+                                                    <div class="modal-header border-bottom-0 pb-0">
+                                                        <h5 class="modal-title text-danger fw-bold">
+                                                            <i class="bi bi-exclamation-triangle-fill me-2"></i>Delete Teaching Slot
+                                                        </h5>
+                                                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                                    </div>
+                                                    <div class="modal-body py-3 text-start">
+                                                        <p class="mb-2">Are you sure you want to permanently delete this teaching slot?</p>
+                                                        <div class="p-3 bg-light rounded-3 mb-3 border">
+                                                            <div class="fw-bold text-dark fs-6">{{ s.slot_name }}</div>
+                                                            <div class="small text-secondary mt-1">
+                                                                <strong>Subject:</strong> {{ s.subject.code }} &bull; {{ s.subject.name }}
+                                                            </div>
+                                                            <div class="small text-secondary">
+                                                                <strong>Class:</strong> {{ s.classroom.class_name }} (Div {{ s.classroom.division }}) &bull; <strong>Faculty:</strong> {{ s.faculty.user.name }}
+                                                            </div>
+                                                        </div>
+                                                        <div class="alert alert-danger py-2 small mb-0 d-flex align-items-center gap-2">
+                                                            <i class="bi bi-exclamation-circle-fill fs-5"></i>
+                                                            <div>This will permanently remove this slot and its recorded sessions/attendance from the MySQL database.</div>
+                                                        </div>
+                                                    </div>
+                                                    <div class="modal-footer border-top-0 pt-0">
+                                                        <button type="button" class="btn btn-sm btn-secondary rounded-pill px-3" data-bs-dismiss="modal">Cancel</button>
+                                                        <form method="post" action="{{ url_for('admin.delete_slot', sid=s.id) }}">
+                                                            <button type="submit" class="btn btn-sm btn-danger rounded-pill px-3">
+                                                                <i class="bi bi-trash3 me-1"></i> Delete Slot
+                                                            </button>
+                                                        </form>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                </tr>
+                            {% else %}
+                                <tr>
+                                    <td colspan="8" class="text-center py-4 text-secondary">
+                                        No teaching slots assigned yet.
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================== -->
+    <!-- TAB 2: CLASSES & SUBJECTS                     -->
+    <!-- ============================================== -->
+    <div class="tab-pane fade" id="classes-pane">
+        <div class="row g-4">
+            <!-- Add Class Card -->
+            <div class="col-lg-6">
+                <div class="card card-custom border-0 h-100">
+                    <div class="card-body p-4">
+                        <h2 class="h5 fw-bold text-dark mb-1">
+                            <i class="bi bi-building-add text-primary me-2"></i>Create Classroom
+                        </h2>
+                        <p class="text-secondary small mb-3">Add academic class name and division identifier.</p>
+
+                        <form method="post" action="{{ url_for('admin.add_class') }}" class="mb-4">
+                            <div class="row g-2">
+                                <div class="col-8">
+                                    <input class="form-control" name="class_name" placeholder="e.g. SY Computer Science" required>
+                                </div>
+                                <div class="col-4">
+                                    <input class="form-control text-uppercase" name="division" placeholder="Div A" value="A" required>
+                                </div>
+                                <div class="col-12 mt-2">
+                                    <button class="btn btn-primary-custom w-100">
+                                        <i class="bi bi-plus-lg me-1"></i> Add Classroom
+                                    </button>
+                                </div>
+                            </div>
+                        </form>
+
+                        <h3 class="h6 fw-bold text-dark mb-3">Existing Classrooms ({{ classes|length }})</h3>
+                        {% if classes %}
+                            <div class="list-group list-group-flush border rounded-3 overflow-hidden shadow-sm">
+                                {% for c in classes %}
+                                    <div class="list-group-item d-flex justify-content-between align-items-center p-3">
+                                        <div>
+                                            <div class="fw-bold text-dark">
+                                                <i class="bi bi-building text-primary me-2"></i>{{ c.class_name }}
+                                                <span class="badge bg-primary-subtle text-primary border border-primary-subtle ms-1">Div {{ c.division }}</span>
+                                            </div>
+                                            <div class="small text-secondary mt-1">
+                                                <span class="me-3"><i class="bi bi-mortarboard text-muted me-1"></i>{{ c.students_count }} Students</span>
+                                                <span><i class="bi bi-calendar-check text-muted me-1"></i>{{ c.slots_count }} Slots</span>
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <button type="button" class="btn btn-sm btn-outline-danger rounded-pill px-3" data-bs-toggle="modal" data-bs-target="#deleteClassModal{{ c.id }}" title="Delete Classroom">
+                                                <i class="bi bi-trash3"></i> Delete
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <!-- Delete Class Modal -->
+                                    <div class="modal fade" id="deleteClassModal{{ c.id }}" tabindex="-1" aria-hidden="true">
+                                        <div class="modal-dialog modal-dialog-centered">
+                                            <div class="modal-content border-0 shadow">
+                                                <div class="modal-header border-bottom-0 pb-0">
+                                                    <h5 class="modal-title text-danger fw-bold">
+                                                        <i class="bi bi-exclamation-triangle-fill me-2"></i>Delete Classroom
+                                                    </h5>
+                                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                                </div>
+                                                <div class="modal-body py-3 text-start">
+                                                    <p class="mb-2">Are you sure you want to permanently delete this classroom?</p>
+                                                    <div class="p-3 bg-light rounded-3 mb-3 border">
+                                                        <div class="fw-bold text-dark fs-6">{{ c.class_name }} (Div {{ c.division }})</div>
+                                                        <div class="small text-secondary mt-1">
+                                                            Enrolled Students: <strong>{{ c.students_count }}</strong> &bull; Assigned Slots: <strong>{{ c.slots_count }}</strong>
+                                                        </div>
+                                                    </div>
+                                                    <div class="alert alert-danger py-2 small mb-0 d-flex align-items-center gap-2">
+                                                        <i class="bi bi-exclamation-circle-fill fs-5"></i>
+                                                        <div>Permanently removes this class, all linked teaching slots, enrolled student accounts, and attendance history from the MySQL database.</div>
+                                                    </div>
+                                                </div>
+                                                <div class="modal-footer border-top-0 pt-0">
+                                                    <button type="button" class="btn btn-sm btn-secondary rounded-pill px-3" data-bs-dismiss="modal">Cancel</button>
+                                                    <form method="post" action="{{ url_for('admin.delete_class', cid=c.id) }}">
+                                                        <button type="submit" class="btn btn-sm btn-danger rounded-pill px-3">
+                                                            <i class="bi bi-trash3 me-1"></i> Delete Classroom
+                                                        </button>
+                                                    </form>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            <div class="text-center py-4 text-secondary bg-light rounded-3 border">
+                                <i class="bi bi-building fs-3 d-block text-muted mb-2"></i>
+                                No classes created yet.
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Add Subject Card -->
+            <div class="col-lg-6">
+                <div class="card card-custom border-0 h-100">
+                    <div class="card-body p-4">
+                        <h2 class="h5 fw-bold text-dark mb-1">
+                            <i class="bi bi-journal-plus text-primary me-2"></i>Create Subject
+                        </h2>
+                        <p class="text-secondary small mb-3">Define subject code and course title.</p>
+
+                        <form method="post" action="{{ url_for('admin.add_subject') }}" class="mb-4">
+                            <div class="row g-2">
+                                <div class="col-4">
+                                    <input class="form-control text-uppercase font-monospace" name="code" placeholder="CS301" required>
+                                </div>
+                                <div class="col-8">
+                                    <input class="form-control" name="name" placeholder="e.g. Database Management Systems" required>
+                                </div>
+                                <div class="col-12 mt-2">
+                                    <button class="btn btn-primary-custom w-100">
+                                        <i class="bi bi-plus-lg me-1"></i> Add Subject
+                                    </button>
+                                </div>
+                            </div>
+                        </form>
+
+                        <h3 class="h6 fw-bold text-dark mb-3">Existing Subjects ({{ subjects|length }})</h3>
+                        {% if subjects %}
+                            <div class="list-group list-group-flush border rounded-3 overflow-hidden shadow-sm">
+                                {% for s in subjects %}
+                                    <div class="list-group-item d-flex justify-content-between align-items-center p-3">
+                                        <div>
+                                            <div class="fw-bold text-dark">
+                                                <span class="badge bg-light text-primary border me-1 font-monospace">{{ s.code }}</span>
+                                                {{ s.name }}
+                                            </div>
+                                            <div class="small text-secondary mt-1">
+                                                <span><i class="bi bi-calendar-check text-muted me-1"></i>{{ s.slots_count }} Teaching Slots Assigned</span>
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <button type="button" class="btn btn-sm btn-outline-danger rounded-pill px-3" data-bs-toggle="modal" data-bs-target="#deleteSubjectModal{{ s.code }}" title="Delete Subject">
+                                                <i class="bi bi-trash3"></i> Delete
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <!-- Delete Subject Modal -->
+                                    <div class="modal fade" id="deleteSubjectModal{{ s.code }}" tabindex="-1" aria-hidden="true">
+                                        <div class="modal-dialog modal-dialog-centered">
+                                            <div class="modal-content border-0 shadow">
+                                                <div class="modal-header border-bottom-0 pb-0">
+                                                    <h5 class="modal-title text-danger fw-bold">
+                                                        <i class="bi bi-exclamation-triangle-fill me-2"></i>Delete Subject
+                                                    </h5>
+                                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                                </div>
+                                                <div class="modal-body py-3 text-start">
+                                                    <p class="mb-2">Are you sure you want to permanently delete this subject?</p>
+                                                    <div class="p-3 bg-light rounded-3 mb-3 border">
+                                                        <div class="fw-bold text-dark fs-6">{{ s.code }} — {{ s.name }}</div>
+                                                        <div class="small text-secondary mt-1">
+                                                            Linked Teaching Slots: <strong>{{ s.slots_count }}</strong>
+                                                        </div>
+                                                    </div>
+                                                    <div class="alert alert-danger py-2 small mb-0 d-flex align-items-center gap-2">
+                                                        <i class="bi bi-exclamation-circle-fill fs-5"></i>
+                                                        <div>Permanently removes this subject and its associated teaching slots and sessions from the MySQL database.</div>
+                                                    </div>
+                                                </div>
+                                                <div class="modal-footer border-top-0 pt-0">
+                                                    <button type="button" class="btn btn-sm btn-secondary rounded-pill px-3" data-bs-dismiss="modal">Cancel</button>
+                                                    <form method="post" action="{{ url_for('admin.delete_subject', code=s.code) }}">
+                                                        <button type="submit" class="btn btn-sm btn-danger rounded-pill px-3">
+                                                            <i class="bi bi-trash3 me-1"></i> Delete Subject
+                                                        </button>
+                                                    </form>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            <div class="text-center py-4 text-secondary bg-light rounded-3 border">
+                                <i class="bi bi-journal-x fs-3 d-block text-muted mb-2"></i>
+                                No subjects created yet.
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================== -->
+    <!-- TAB 3: USER ACCOUNTS                           -->
+    <!-- ============================================== -->
+    <div class="tab-pane fade" id="users-pane">
+        <div class="card card-custom border-0">
+            <div class="card-body p-4">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <div>
+                        <h2 class="h5 fw-bold text-dark mb-0">System User Accounts</h2>
+                        <small class="text-secondary">Students, Faculty, and Administrators registered in AttendWise</small>
+                    </div>
+                </div>
+
+                <div class="table-responsive">
+                    <table class="table table-custom align-middle">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Email</th>
+                                <th>Role</th>
+                                <th>Role Details</th>
+                                <th>Account Status</th>
+                                <th class="text-end">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for u in users %}
+                                <tr>
+                                    <td class="fw-bold">{{ u.name }}</td>
+                                    <td>{{ u.email }}</td>
+                                    <td>
+                                        <span class="badge-role badge-role-{{ u.role }}">
+                                            {{ u.role|title }}
+                                        </span>
+                                    </td>
+                                    <td class="small text-secondary">
+                                        {% if u.role == 'student' and u.student %}
+                                            Roll: <strong>{{ u.student.roll_no }}</strong> &bull; {{ u.student.classroom.class_name }} (Div {{ u.student.classroom.division }})
+                                        {% elif u.role == 'faculty' and u.faculty %}
+                                            Faculty ID: #{{ u.faculty.id }}
+                                        {% else %}
+                                            System Administrator
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if u.active %}
+                                            <span class="badge bg-success-subtle text-success border border-success-subtle">Active</span>
+                                        {% else %}
+                                            <span class="badge bg-danger-subtle text-danger border border-danger-subtle">Disabled</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-end">
+                                        {% if u.id == current_user.id %}
+                                            <span class="badge bg-light text-muted border px-3 py-2 rounded-pill">
+                                                <i class="bi bi-shield-check text-primary me-1"></i> Current Admin (Protected)
+                                            </span>
+                                        {% else %}
+                                            <div class="d-flex justify-content-end gap-1">
+                                                <form method="post" action="{{ url_for('admin.toggle_user', uid=u.id) }}" class="d-inline">
+                                                    <button class="btn btn-sm {% if u.active %}btn-outline-warning{% else %}btn-outline-success{% endif %} rounded-pill px-2" title="{{ 'Disable Account' if u.active else 'Enable Account' }}">
+                                                        {{ 'Disable' if u.active else 'Enable' }}
+                                                    </button>
+                                                </form>
+                                                <button type="button" class="btn btn-sm btn-outline-danger rounded-pill px-2" data-bs-toggle="modal" data-bs-target="#deleteUserModal{{ u.id }}" title="Delete User">
+                                                    <i class="bi bi-trash3"></i> Delete
+                                                </button>
+                                            </div>
+
+                                            <!-- Delete User Modal -->
+                                            <div class="modal fade" id="deleteUserModal{{ u.id }}" tabindex="-1" aria-hidden="true">
+                                                <div class="modal-dialog modal-dialog-centered">
+                                                    <div class="modal-content border-0 shadow">
+                                                        <div class="modal-header border-bottom-0 pb-0">
+                                                            <h5 class="modal-title text-danger fw-bold">
+                                                                <i class="bi bi-exclamation-triangle-fill me-2"></i>Delete User Account
+                                                            </h5>
+                                                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                                        </div>
+                                                        <div class="modal-body py-3 text-start">
+                                                            <p class="mb-2">Are you sure you want to permanently delete this user account?</p>
+                                                            <div class="p-3 bg-light rounded-3 mb-3 border">
+                                                                <div class="fw-bold text-dark fs-6">{{ u.name }}</div>
+                                                                <div class="small text-secondary">{{ u.email }} &bull; <span class="badge bg-secondary-subtle text-secondary">{{ u.role|title }}</span></div>
+                                                                {% if u.role == 'student' and u.student %}
+                                                                    <div class="small text-secondary mt-1">Roll Number: <strong>{{ u.student.roll_no }}</strong> &bull; Class: {{ u.student.classroom.class_name }} (Div {{ u.student.classroom.division }})</div>
+                                                                {% elif u.role == 'faculty' and u.faculty %}
+                                                                    <div class="small text-secondary mt-1">Faculty ID: #{{ u.faculty.id }}</div>
+                                                                {% endif %}
+                                                            </div>
+                                                            <div class="alert alert-danger py-2 small mb-0 d-flex align-items-center gap-2">
+                                                                <i class="bi bi-exclamation-circle-fill fs-5"></i>
+                                                                <div>
+                                                                    {% if u.role == 'student' %}
+                                                                        Permanently removes student profile and all attendance records from the MySQL database.
+                                                                    {% elif u.role == 'faculty' %}
+                                                                        Permanently removes faculty profile, assigned slots, sessions, and attendance logs from MySQL.
+                                                                    {% else %}
+                                                                        Permanently removes this administrator account from the MySQL database.
+                                                                    {% endif %}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                        <div class="modal-footer border-top-0 pt-0">
+                                                            <button type="button" class="btn btn-sm btn-secondary rounded-pill px-3" data-bs-dismiss="modal">Cancel</button>
+                                                            <form method="post" action="{{ url_for('admin.delete_user', uid=u.id) }}">
+                                                                <button type="submit" class="btn btn-sm btn-danger rounded-pill px-3">
+                                                                    <i class="bi bi-trash3 me-1"></i> Delete Account
+                                                                </button>
+                                                            </form>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================== -->
+    <!-- TAB 4: CONDUCTED LECTURES & ATTENDANCE LOGS    -->
+    <!-- ============================================== -->
+    <div class="tab-pane fade" id="sessions-pane">
+        <div class="card card-custom border-0">
+            <div class="card-body p-4">
+                <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
+                    <div>
+                        <h2 class="h5 fw-bold text-dark mb-0">
+                            <i class="bi bi-calendar2-range-fill text-primary me-2"></i>Conducted Lectures & Attendance Logs
+                        </h2>
+                        <small class="text-secondary">Keep an eye on every lecture date, scheduled timing, faculty in-charge, and student attendance</small>
+                    </div>
+                    <div>
+                        <span class="badge bg-light text-secondary border px-3 py-2 rounded-pill">
+                            Total Conducted Lectures: <strong>{{ session_logs|length }}</strong>
+                        </span>
+                    </div>
+                </div>
+
+                <div class="table-responsive">
+                    <table class="table table-custom align-middle">
+                        <thead>
+                            <tr>
+                                <th>Lecture Date</th>
+                                <th>Lecture Timing</th>
+                                <th>Subject</th>
+                                <th>Class</th>
+                                <th>Faculty In-Charge</th>
+                                <th>Topic Covered</th>
+                                <th class="text-center">Turnout</th>
+                                <th class="text-end">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in session_logs %}
+                                {% set sess = item.session %}
+                                <tr>
+                                    <td>
+                                        <span class="badge bg-white text-dark border p-2 shadow-sm rounded-3">
+                                            <i class="bi bi-calendar-event text-primary me-1"></i>
+                                            <strong>{{ sess.session_date.strftime('%d %b %Y') }}</strong>
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <span class="badge-lecture-time">
+                                            <i class="bi bi-clock"></i> {{ sess.lecture_time or (sess.slot.lecture_time if sess.slot else '10:00 AM - 11:00 AM') }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        {% if sess.slot and sess.slot.subject %}
+                                            <div class="fw-bold text-dark">{{ sess.slot.subject.name }}</div>
+                                            <span class="badge bg-light text-secondary border small">{{ sess.slot.subject.code }}</span>
+                                        {% else %}
+                                            <span class="text-muted small">N/A</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if sess.slot and sess.slot.classroom %}
+                                            <div class="fw-semibold">{{ sess.slot.classroom.class_name }}</div>
+                                            <small class="text-secondary">Div {{ sess.slot.classroom.division }} &bull; {{ sess.slot.slot_name }}</small>
+                                        {% else %}
+                                            <span class="text-muted small">N/A</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if sess.slot and sess.slot.faculty %}
+                                            <div class="fw-semibold text-dark">{{ sess.slot.faculty.user.name }}</div>
+                                            <small class="text-secondary">{{ sess.slot.faculty.user.email }}</small>
+                                        {% else %}
+                                            <span class="text-muted small">N/A</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if sess.topic %}
+                                            <span class="small text-dark">{{ sess.topic }}</span>
+                                        {% else %}
+                                            <span class="text-muted small fst-italic">No topic specified</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-center">
+                                        <div class="fw-bold {% if item.percentage < 75 %}text-danger{% else %}text-success{% endif %}">
+                                            {{ item.percentage }}%
+                                        </div>
+                                        <div class="small text-secondary">
+                                            <span class="text-success fw-semibold">{{ item.present_count }} Present</span> / 
+                                            <span class="text-danger fw-semibold">{{ item.absent_count }} Absent</span>
+                                        </div>
+                                    </td>
+                                    <td class="text-end">
+                                        <div class="d-flex justify-content-end gap-1">
+                                            <button type="button" class="btn btn-sm btn-outline-primary rounded-pill px-2" data-bs-toggle="modal" data-bs-target="#viewSessionModal{{ sess.id }}" title="View Attendance Sheet">
+                                                <i class="bi bi-people-fill"></i> Sheet
+                                            </button>
+                                            <button type="button" class="btn btn-sm btn-outline-danger rounded-pill px-2" data-bs-toggle="modal" data-bs-target="#deleteSessionModal{{ sess.id }}" title="Delete Session">
+                                                <i class="bi bi-trash3"></i>
+                                            </button>
+                                        </div>
+
+                                        <!-- View Attendance Sheet Modal -->
+                                        <div class="modal fade" id="viewSessionModal{{ sess.id }}" tabindex="-1" aria-hidden="true">
+                                            <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
+                                                <div class="modal-content border-0 shadow">
+                                                    <div class="modal-header">
+                                                        <div>
+                                                            <h5 class="modal-title fw-bold text-dark mb-0">
+                                                                <i class="bi bi-clipboard-check text-primary me-2"></i>Attendance Sheet for Lecture
+                                                            </h5>
+                                                            <small class="text-secondary">
+                                                                Date: <strong>{{ sess.session_date.strftime('%A, %d %B %Y') }}</strong> &bull; Time: <strong>{{ sess.lecture_time }}</strong>
+                                                            </small>
+                                                        </div>
+                                                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                                    </div>
+                                                    <div class="modal-body p-4 text-start">
+                                                        <div class="p-3 bg-light rounded-3 mb-3 border">
+                                                            <div class="row g-2">
+                                                                <div class="col-sm-6">
+                                                                    <strong>Subject:</strong> {{ sess.slot.subject.name }} ({{ sess.slot.subject.code }})<br>
+                                                                    <strong>Class:</strong> {{ sess.slot.classroom.class_name }} / Div {{ sess.slot.classroom.division }}
+                                                                </div>
+                                                                <div class="col-sm-6">
+                                                                    <strong>Faculty:</strong> {{ sess.slot.faculty.user.name }}<br>
+                                                                    <strong>Topic:</strong> {{ sess.topic or 'Standard Lecture' }}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+
+                                                        <div class="d-flex justify-content-between align-items-center mb-2">
+                                                            <h6 class="fw-bold mb-0">Student Attendance Records ({{ item.total_marked }})</h6>
+                                                            <span class="badge bg-light text-dark border">
+                                                                Present: <strong class="text-success">{{ item.present_count }}</strong> | 
+                                                                Absent: <strong class="text-danger">{{ item.absent_count }}</strong> ({{ item.percentage }}%)
+                                                            </span>
+                                                        </div>
+
+                                                        <div class="table-responsive">
+                                                            <table class="table table-sm align-middle table-hover">
+                                                                <thead class="table-light">
+                                                                    <tr>
+                                                                        <th style="width: 120px;">Roll No</th>
+                                                                        <th>Student Name</th>
+                                                                        <th class="text-end">Status</th>
+                                                                    </tr>
+                                                                </thead>
+                                                                <tbody>
+                                                                    {% for att in item.records %}
+                                                                        <tr>
+                                                                            <td class="font-monospace fw-bold">{{ att.roll_no }}</td>
+                                                                            <td>{{ att.student.user.name if att.student and att.student.user else 'Student' }}</td>
+                                                                            <td class="text-end">
+                                                                                {% if att.status == 'present' %}
+                                                                                    <span class="badge bg-success-subtle text-success border border-success-subtle px-3 py-1">
+                                                                                        <i class="bi bi-check-circle-fill me-1"></i> Present
+                                                                                    </span>
+                                                                                {% else %}
+                                                                                    <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-3 py-1">
+                                                                                        <i class="bi bi-x-circle-fill me-1"></i> Absent
+                                                                                    </span>
+                                                                                {% endif %}
+                                                                            </td>
+                                                                        </tr>
+                                                                    {% else %}
+                                                                        <tr>
+                                                                            <td colspan="3" class="text-center text-muted py-3">No student records found.</td>
+                                                                        </tr>
+                                                                    {% endfor %}
+                                                                </tbody>
+                                                            </table>
+                                                        </div>
+                                                    </div>
+                                                    <div class="modal-footer">
+                                                        <button type="button" class="btn btn-secondary rounded-pill px-3" data-bs-dismiss="modal">Close</button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <!-- Delete Session Modal -->
+                                        <div class="modal fade" id="deleteSessionModal{{ sess.id }}" tabindex="-1" aria-hidden="true">
+                                            <div class="modal-dialog modal-dialog-centered">
+                                                <div class="modal-content border-0 shadow">
+                                                    <div class="modal-header border-bottom-0 pb-0">
+                                                        <h5 class="modal-title text-danger fw-bold">
+                                                            <i class="bi bi-exclamation-triangle-fill me-2"></i>Delete Lecture Session
+                                                        </h5>
+                                                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                                    </div>
+                                                    <div class="modal-body py-3 text-start">
+                                                        <p class="mb-2">Are you sure you want to permanently delete this lecture session?</p>
+                                                        <div class="p-3 bg-light rounded-3 mb-3 border">
+                                                            <div class="fw-bold text-dark fs-6">{{ sess.session_date.strftime('%d %B %Y') }} &bull; {{ sess.lecture_time }}</div>
+                                                            <div class="small text-secondary mt-1">
+                                                                Subject: <strong>{{ sess.slot.subject.name }}</strong> &bull; Class: {{ sess.slot.classroom.class_name }}
+                                                            </div>
+                                                        </div>
+                                                        <div class="alert alert-danger py-2 small mb-0 d-flex align-items-center gap-2">
+                                                            <i class="bi bi-exclamation-circle-fill fs-5"></i>
+                                                            <div>This will permanently delete this lecture session and its {{ item.total_marked }} student attendance records from MySQL.</div>
+                                                        </div>
+                                                    </div>
+                                                    <div class="modal-footer border-top-0 pt-0">
+                                                        <button type="button" class="btn btn-sm btn-secondary rounded-pill px-3" data-bs-dismiss="modal">Cancel</button>
+                                                        <form method="post" action="{{ url_for('admin.delete_session', sess_id=sess.id) }}">
+                                                            <button type="submit" class="btn btn-sm btn-danger rounded-pill px-3">
+                                                                <i class="bi bi-trash3 me-1"></i> Delete Session
+                                                            </button>
+                                                        </form>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                </tr>
+                            {% else %}
+                                <tr>
+                                    <td colspan="8" class="text-center py-4 text-secondary">
+                                        <i class="bi bi-calendar-x fs-3 d-block mb-2 text-muted"></i>
+                                        No lecture sessions have been conducted or recorded yet.
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function formatTime12(timeStr) {
+        if (!timeStr) return '';
+        const parts = timeStr.split(':');
+        let h = parseInt(parts[0], 10);
+        const m = parts[1] || '00';
+        const ampm = h >= 12 ? 'PM' : 'AM';
+        const hour12 = h % 12 || 12;
+        const hourPad = hour12 < 10 ? '0' + hour12 : hour12;
+        return `${hourPad}:${m} ${ampm}`;
+    }
+
+    function syncAdminSlotTime() {
+        const sInput = document.getElementById('adminStartTime');
+        const eInput = document.getElementById('adminEndTime');
+        const hiddenInput = document.getElementById('adminLectureTimeInput');
+        const preview = document.getElementById('adminSlotTimePreview');
+        if (!sInput || !eInput || !hiddenInput) return;
+
+        const sVal = sInput.value || '10:00';
+        const eVal = eInput.value || '11:00';
+        const formattedRange = `${formatTime12(sVal)} - ${formatTime12(eVal)}`;
+        hiddenInput.value = formattedRange;
+        if (preview) preview.textContent = formattedRange;
+    }
+
+    // Preserve active tab across page refresh or after form submissions
+    document.addEventListener("DOMContentLoaded", function () {
+        const hash = window.location.hash;
+        if (hash) {
+            const triggerEl = document.querySelector(`button[data-bs-target="${hash}"]`);
+            if (triggerEl) {
+                bootstrap.Tab.getOrCreateInstance(triggerEl).show();
+            }
+        }
+        const tabButtons = document.querySelectorAll('#adminTabs button[data-bs-toggle="pill"]');
+        tabButtons.forEach(btn => {
+            btn.addEventListener('shown.bs.tab', function (e) {
+                window.location.hash = e.target.getAttribute('data-bs-target');
+            });
+        });
+
+        // Initialize admin slot time pickers
+        const sInput = document.getElementById('adminStartTime');
+        const eInput = document.getElementById('adminEndTime');
+        if (sInput && eInput) {
+            syncAdminSlotTime();
+            sInput.addEventListener('input', syncAdminSlotTime);
+            eInput.addEventListener('input', syncAdminSlotTime);
+            sInput.addEventListener('change', syncAdminSlotTime);
+            eInput.addEventListener('change', syncAdminSlotTime);
+        }
+
+        // Admin slot presets
+        document.querySelectorAll('.quick-admin-slot-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.preventDefault();
+                if (sInput && eInput) {
+                    sInput.value = btn.getAttribute('data-start');
+                    eInput.value = btn.getAttribute('data-end');
+                    syncAdminSlotTime();
+                }
+            });
+        });
+    });
+</script>
+{% endblock %}
