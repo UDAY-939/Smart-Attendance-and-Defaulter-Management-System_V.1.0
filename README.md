@@ -1,4 +1,4 @@
-# AttendWise — Student Attendance & Defaulter Management
+# Student Attendance & Defaulter Management
 
 Flask + MySQL starter application based on the provided ER diagram.
 
