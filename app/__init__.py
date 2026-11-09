@@ -15,14 +15,31 @@ def create_app():
     # This works for both TiDB Cloud and plain MySQL (SSL is just ignored if not needed).
     db_url = os.getenv('DATABASE_URL', 'mysql+pymysql://root:password@localhost:3306/attendance_db?charset=utf8mb4')
 
+    # TiDB Cloud requires SSL with CA verification.
+    # On Render (Linux), system CA bundle is used. On local Windows dev, SSL is relaxed.
+    ssl_ca_path = os.getenv('SSL_CA_PATH', '/etc/ssl/certs/ca-certificates.crt')
+    use_ssl = os.getenv('USE_SSL', 'true').lower() == 'true'
+
+    if use_ssl and os.path.exists(ssl_ca_path):
+        # Production (Render + TiDB Cloud): full SSL with CA verification
+        ssl_args = {
+            "ssl_verify_cert": True,
+            "ssl_verify_identity": True,
+            "ssl_ca": ssl_ca_path,
+        }
+    elif use_ssl:
+        # SSL requested but no CA file found — still enable TLS (basic encryption)
+        ssl_args = {"ssl": {"fake_flag_to_enable_tls": True}}
+    else:
+        # Local dev without SSL
+        ssl_args = {}
+
     app.config.update(
         SECRET_KEY=os.getenv('SECRET_KEY', 'dev-only-change-this'),
         SQLALCHEMY_DATABASE_URI=db_url,
         SQLALCHEMY_TRACK_MODIFICATIONS=False,
         SQLALCHEMY_ENGINE_OPTIONS={
-            "connect_args": {
-                "ssl": {"fake_flag_to_enable_tls": True}  # enables TLS for PyMySQL (TiDB Cloud requirement)
-            },
+            "connect_args": ssl_args,
             "pool_pre_ping": True,   # auto-reconnect if connection drops (important for hosted DBs)
             "pool_recycle": 1800,    # recycle connections every 30 min to avoid stale connections
         }
