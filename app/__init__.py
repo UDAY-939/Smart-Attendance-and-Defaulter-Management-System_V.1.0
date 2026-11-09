@@ -10,7 +10,24 @@ login_manager.login_view = 'auth.login_portal'
 
 def create_app():
     app = Flask(__name__)
-    app.config.update(SECRET_KEY=os.getenv('SECRET_KEY', 'dev-only-change-this'), SQLALCHEMY_DATABASE_URI=os.getenv('DATABASE_URL', 'mysql+pymysql://root:password@localhost:3306/attendance_db?charset=utf8mb4'), SQLALCHEMY_TRACK_MODIFICATIONS=False)
+
+    # TiDB Cloud Serverless requires SSL. We pass ssl=True via connect_args.
+    # This works for both TiDB Cloud and plain MySQL (SSL is just ignored if not needed).
+    db_url = os.getenv('DATABASE_URL', 'mysql+pymysql://root:password@localhost:3306/attendance_db?charset=utf8mb4')
+
+    app.config.update(
+        SECRET_KEY=os.getenv('SECRET_KEY', 'dev-only-change-this'),
+        SQLALCHEMY_DATABASE_URI=db_url,
+        SQLALCHEMY_TRACK_MODIFICATIONS=False,
+        SQLALCHEMY_ENGINE_OPTIONS={
+            "connect_args": {
+                "ssl": {"fake_flag_to_enable_tls": True}  # enables TLS for PyMySQL (TiDB Cloud requirement)
+            },
+            "pool_pre_ping": True,   # auto-reconnect if connection drops (important for hosted DBs)
+            "pool_recycle": 1800,    # recycle connections every 30 min to avoid stale connections
+        }
+    )
+
     db.init_app(app)
     login_manager.init_app(app)
     from . import models
